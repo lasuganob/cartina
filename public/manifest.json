@@ -1,0 +1,16 @@
+{
+  "name": "Cartina",
+  "short_name": "Tinables",
+  "description": "Offline-first grocery trip planner.",
+  "theme_color": "#0d47a1",
+  "background_color": "#f5f7fb",
+  "display": "standalone",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
