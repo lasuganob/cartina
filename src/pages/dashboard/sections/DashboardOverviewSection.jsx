@@ -46,7 +46,7 @@ export default function DashboardOverviewSection({ trips, loading, error }) {
   }
 
   return (
-    <Card sx={{ width: 500, minHeight: 300 }}>
+    <Card>
       <CardContent>
         <Typography variant="body" color="text.secondary" sx={{ mb: 2, textTransform: 'uppercase', fontWeight: 'bold', fontSize: '12px', letterSpacing: '2px' }}>  
           Upcoming Trips

@@ -17,11 +17,11 @@ export default function DashboardPage() {
       />
 
       <Grid container spacing={2} alignItems="flex-start" sx={{ mb: 3 }}>
-        <Grid item xs={12} md="auto">
+        <Grid size={{ xs: 12, lg: 7 }}>
           <DashboardOverviewSection trips={trips} loading={loading} error={error} />
         </Grid>
 
-        <Grid item xs={12} md>
+        <Grid size={{ xs: 12, lg: 5 }}>
           <Card sx={{ p: 2 }}>
             <Typography
               variant="body"
@@ -37,17 +37,17 @@ export default function DashboardPage() {
             </Typography>
 
             <Grid container spacing={2} sx={{ mt: 1 }}>
-              <Grid item xs={12} md={4}>
+              <Grid size={{ xs: 4 }}>
                 <MetricCard label="Planned Trips" value={stats.plannedTrips} loading={loading} />
               </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid size={{ xs: 4 }}>
                 <MetricCard
                   label="Budget Allocated"
                   value={formatCurrency(stats.totalBudget)}
                   loading={loading}
                 />
               </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid size={{ xs: 4 }}>
                 <MetricCard label="Completed Trips" value={stats.completedTrips} loading={loading} />
               </Grid>
             </Grid>

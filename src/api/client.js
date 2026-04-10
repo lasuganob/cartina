@@ -68,5 +68,11 @@ export const apiClient = {
       method: 'POST',
       body: payload
     });
+  },
+  updateTrip(payload) {
+    return request('/trips/update', {
+      method: 'POST',
+      body: payload
+    });
   }
 };

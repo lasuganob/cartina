@@ -1,7 +1,8 @@
-import { Card, CardContent, Stack, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Stack, Typography } from '@mui/material';
 import StatusChip from '../../../components/StatusChip';
 import { formatCurrency } from '../../../utils/formatCurrency';
 import { formatDate } from '../../../utils/formatDate';
+import { NavLink } from 'react-router-dom';
 
 export default function TripCard({ trip }) {
   return (
@@ -12,20 +13,42 @@ export default function TripCard({ trip }) {
           justifyContent="space-between"
           spacing={2}
         >
-          <div>
-            <Typography variant="subtitle1">{trip.name}</Typography>
+          <Box>
+            <Stack direction="row" spacing={1}>
+              <Typography variant="subtitle1">{trip.name}</Typography>
+              <StatusChip status={trip.status} />
+            </Stack>
             <Typography variant="body2" color="text.secondary">
-              Planned for {formatDate(trip.planned_for)}
+              Planned for: {formatDate(trip.planned_for)}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Budget {formatCurrency(trip.budget)} • Store ID {trip.store_id || 'Not assigned'}
+              Budget: {formatCurrency(trip.budget)}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Created {formatDate(trip.created_at)}{' '}
-              {trip.completed_at ? `• Completed ${formatDate(trip.completed_at)}` : ''}
+              Store: {trip.store?.name || 'Not assigned'}
             </Typography>
-          </div>
-          <StatusChip status={trip.status} />
+            <Typography variant="body2" color="text.secondary">
+              Items: {trip.items.length}
+            </Typography>
+          </Box>
+
+          <Box>
+            <Button
+              variant="contained"
+              component={NavLink}
+              to={`/trips/${trip.id}`}
+              sx={{ textTransform: "none", mr: 1, backgroundColor: "#007bff"}}
+            >
+              View
+            </Button>
+            <Button
+              variant="contained"
+              component={NavLink}
+              sx={{ textTransform: "none", backgroundColor: "#dc3545"}}
+            >
+              Delete
+            </Button>
+          </Box>
         </Stack>
       </CardContent>
     </Card>

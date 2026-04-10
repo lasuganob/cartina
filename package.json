@@ -13,6 +13,7 @@
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^7.0.2",
     "@mui/material": "^7.0.2",
+    "@mui/x-date-pickers": "^9.0.0",
     "dayjs": "^1.11.13",
     "dexie": "^4.0.10",
     "dexie-react-hooks": "^1.1.7",

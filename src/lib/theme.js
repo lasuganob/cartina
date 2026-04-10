@@ -52,10 +52,9 @@ export function createAppTheme(mode = 'light') {
       MuiButton: {
         styleOverrides: {
           root: {
-            borderRadius: 14,
+            borderRadius: 20,
             backgroundColor: 'rgb(74, 101, 85)',
             color: '#f5f7f2',
-            padding: '15px',
             fontWeight: 'bold',
             '&:hover': {
               backgroundColor: 'rgba(74, 101, 85, 0.8)',

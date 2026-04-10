@@ -1,20 +1,45 @@
 import {
   Alert,
+  Button,
   Card,
   CardContent,
+  Pagination,
   Skeleton,
   Stack,
   Typography
 } from '@mui/material';
+import { useEffect, useMemo, useState } from 'react';
 import EmptyState from '../../../components/EmptyState';
 import TripCard from '../components/TripCard';
+import { NavLink } from 'react-router-dom';
+
+const PAGE_SIZE = 5;
 
 export default function TripsListSection({ trips, loading, error }) {
+  const [page, setPage] = useState(1);
+
+  const totalPages = Math.max(1, Math.ceil(trips.length / PAGE_SIZE));
+  const paginatedTrips = useMemo(() => {
+    const startIndex = (page - 1) * PAGE_SIZE;
+    return trips.slice(startIndex, startIndex + PAGE_SIZE);
+  }, [page, trips]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
   if (loading) {
     return (
       <Card>
         <CardContent>
-          <Skeleton variant="text" width={150} height={32} sx={{ mb: 2 }} />
+          <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'flex-end', justifyContent: 'space-between' }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Trips
+            </Typography>
+            <Skeleton variant="rounded" width={150} height={36} />
+          </Stack>        
           <Stack spacing={2}>
             {Array.from({ length: 4 }).map((_, index) => (
               <Card key={index} variant="outlined">
@@ -42,11 +67,21 @@ export default function TripsListSection({ trips, loading, error }) {
   }
 
   return (
-    <Card>
+    <Card sx={{ width: '100%' }}>
       <CardContent>
-        <Typography variant="h6" sx={{ mb: 2 }}>
-          Trips Overview
-        </Typography>
+        <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <Typography variant="h6" sx={{ mb: 1 }}>
+            Trips
+          </Typography>
+          <Button
+            variant="contained"
+            component={NavLink}
+            to="/trips/new"
+            sx={{ mb: 2, padding: '10px 50px'}}
+          >
+            + Add Trip
+          </Button>
+        </Stack>        
         {error ? (
           <Alert severity="warning" sx={{ mb: 2 }}>
             Failed to refresh from GAS. Showing cached IndexedDB data.
@@ -58,11 +93,31 @@ export default function TripsListSection({ trips, loading, error }) {
             description="Add a trip from the form to populate the list."
           />
         ) : (
-          <Stack spacing={2}>
-            {trips.map((trip) => (
-              <TripCard key={trip.id} trip={trip} />
-            ))}
-          </Stack>
+          <>
+            <Stack spacing={2}>
+              {paginatedTrips.map((trip) => (
+                <TripCard key={trip.id} trip={trip} />
+              ))}
+            </Stack>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={2}
+              justifyContent="space-between"
+              alignItems={{ xs: 'flex-start', sm: 'center' }}
+              sx={{ mt: 3 }}
+            >
+              <Typography variant="body2" color="text.secondary">
+                Showing {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, trips.length)} of{' '}
+                {trips.length} trips
+              </Typography>
+              <Pagination
+                page={page}
+                count={totalPages}
+                color="primary"
+                onChange={(_, nextPage) => setPage(nextPage)}
+              />
+            </Stack>
+          </>
         )}
       </CardContent>
     </Card>

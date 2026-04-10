@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => {
         includeAssets: ['logo.png', 'robots.txt'],
         manifest: {
           name: env.VITE_APP_NAME || 'Cartina',
-          short_name: 'Tinables',
+          short_name: 'Cartina',
           description: 'Offline-first grocery trip planning with Google Apps Script backend.',
           theme_color: '#0d47a1',
           background_color: '#f5f7fb',

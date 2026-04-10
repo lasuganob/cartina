@@ -11,6 +11,10 @@ async function processQueue() {
         await apiClient.createTrip(item.payload);
       }
 
+      if (item.entity === 'trips' && item.action === 'update') {
+        await apiClient.updateTrip(item.payload);
+      }
+
       await db.syncQueue.update(item.id, { status: 'synced' });
     } catch (error) {
       await db.syncQueue.update(item.id, { status: 'failed', error: error.message });
