@@ -65,7 +65,7 @@ export default function BudgetRunningTotal({ trip, plannedTotal, remainingBudget
             <LinearProgress
               variant="determinate"
               value={remainingBudgetPercentage}
-              sx={{ height: 10, mb: 2, borderRadius: 2, mb: 0.5 }}
+              sx={{ height: 10, mb: 0.5, borderRadius: 2 }}
             />
             <Stack direction="row" justifyContent="space-between">
                 <Typography variant="body2" color="text.secondary">

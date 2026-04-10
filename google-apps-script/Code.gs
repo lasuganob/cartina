@@ -88,7 +88,7 @@ function getTrips_() {
 }
 
 function createTrip_(payload) {
-  const sheet = getOrCreateSheet_(SHEET_NAMES.trips, [
+  const headers = [
     "id",
     "name",
     "planned_for",
@@ -98,11 +98,12 @@ function createTrip_(payload) {
     "note",
     "created_at",
     "completed_at",
-  ]);
+  ];
+  const sheet = getOrCreateSheet_(SHEET_NAMES.trips, headers);
 
   const budget = Number(payload.budget || 0);
   const trip = {
-    id: payload.id || Utilities.getUuid(),
+    id: resolveRowId_(sheet, headers, payload.id),
     name: payload.name || "",
     planned_for:
       payload.planned_for ||
@@ -211,7 +212,7 @@ function replaceTripChecklist_(payload) {
   }
 
   var items = Array.isArray(payload.items) ? payload.items : [];
-  var sheet = getOrCreateSheet_(SHEET_NAMES.tripChecklist, [
+  var headers = [
     "id",
     "trip_id",
     "inventory_item_id",
@@ -223,10 +224,12 @@ function replaceTripChecklist_(payload) {
     "is_unplanned",
     "sort_order",
     "created_at",
-  ]);
+  ];
+  var sheet = getOrCreateSheet_(SHEET_NAMES.tripChecklist, headers);
   var values = sheet.getDataRange().getValues();
-  var headers = values[0];
+  headers = values[0];
   var tripIdIndex = headers.indexOf("trip_id");
+  var nextId = getNextNumericId_(values, headers);
 
   for (var rowIndex = values.length - 1; rowIndex >= 1; rowIndex -= 1) {
     if (String(values[rowIndex][tripIdIndex]) === String(payload.trip_id)) {
@@ -239,8 +242,14 @@ function replaceTripChecklist_(payload) {
   }
 
   var normalizedItems = items.map(function (item, index) {
+    var resolvedId = normalizeNumericId_(item.id);
+    if (resolvedId === "") {
+      resolvedId = nextId;
+      nextId += 1;
+    }
+
     return {
-      id: item.id || Utilities.getUuid(),
+      id: resolvedId,
       trip_id: payload.trip_id,
       inventory_item_id: item.inventory_item_id || "",
       item_name: item.item_name || "",
@@ -336,6 +345,50 @@ function getRows_(name, headers) {
     });
     return item;
   });
+}
+
+function resolveRowId_(sheet, headers, candidateId) {
+  var normalizedId = normalizeNumericId_(candidateId);
+
+  if (normalizedId !== "") {
+    return normalizedId;
+  }
+
+  var values = sheet.getDataRange().getValues();
+  return getNextNumericId_(values, headers);
+}
+
+function getNextNumericId_(values, headers) {
+  var idIndex = headers.indexOf("id");
+
+  if (idIndex === -1) {
+    throw new Error('Sheet is missing required "id" column.');
+  }
+
+  var maxId = 0;
+
+  for (var rowIndex = 1; rowIndex < values.length; rowIndex += 1) {
+    var numericId = Number(values[rowIndex][idIndex]);
+    if (Number.isFinite(numericId)) {
+      maxId = Math.max(maxId, numericId);
+    }
+  }
+
+  return maxId + 1;
+}
+
+function normalizeNumericId_(value) {
+  if (value === "" || value == null) {
+    return "";
+  }
+
+  var numericId = Number(value);
+
+  if (!Number.isFinite(numericId) || numericId <= 0) {
+    return "";
+  }
+
+  return Math.floor(numericId);
 }
 
 function jsonResponse_(payload) {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { apiClient } from '../api/client';
-import { queueMutation, db } from '../lib/db';
+import { clearQueuedChecklistReplaces, queueMutation, db } from '../lib/db';
 import { useAppContext } from '../context/AppContext';
 import { processQueueIfOnline } from './useOfflineSync';
 
@@ -229,7 +229,8 @@ export function useTrips() {
     return updatedTrip;
   }
 
-  async function replaceTripChecklist(tripId, items) {
+  async function replaceTripChecklist(tripId, items, options = {}) {
+    const { sync = true, notify = true } = options;
     const normalizedItems = items.map((item, index) =>
       normalizeChecklistItem({
         id: item.id || crypto.randomUUID(),
@@ -258,13 +259,20 @@ export function useTrips() {
       }
     });
 
-    await queueMutation('tripChecklist', 'replace', {
-      trip_id: tripId,
-      items: normalizedItems
-    });
+    await clearQueuedChecklistReplaces(tripId);
 
-    await processQueueIfOnline();
-    showSnackbar('Checklist saved locally.', 'success');
+    if (sync) {
+      await queueMutation('tripChecklist', 'replace', {
+        trip_id: tripId,
+        items: normalizedItems
+      });
+
+      await processQueueIfOnline();
+    }
+
+    if (notify) {
+      showSnackbar(sync ? 'Checklist saved locally.' : 'Checklist changes saved on this device.', 'success');
+    }
     return normalizedItems;
   }
 

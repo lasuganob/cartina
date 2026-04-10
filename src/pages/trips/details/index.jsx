@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Grid, Stack, Typography } from '@mui/material';
-import { NavLink, useParams } from 'react-router-dom';
+import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../../../components/PageHeader';
 import StatusChip from '../../../components/StatusChip';
 import { useAppContext } from '../../../context/AppContext';
@@ -14,6 +14,7 @@ import TripDetailsCard from './components/TripDetailsCard';
 
 export default function TripDetailsPage() {
   const { tripId } = useParams();
+  const navigate = useNavigate();
   const { showSnackbar } = useAppContext();
   const { trips, loading, error, updateTrip, replaceTripChecklist } = useTrips();
   const [busy, setBusy] = useState(false);
@@ -138,7 +139,7 @@ export default function TripDetailsPage() {
       <QuickActionsCard
         trip={trip}
         busy={busy}
-        onStartTrip={() => handleStatusChange('in_progress')}
+        onStartTrip={() => navigate(`/trips/${trip.id}/shopping`)}
         onBuildChecklist={handleBuildChecklist}
         onMarkComplete={() => handleStatusChange('completed')}
         onArchiveTrip={handleArchiveTrip}

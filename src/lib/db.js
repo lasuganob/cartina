@@ -27,3 +27,19 @@ export async function queueMutation(entity, action, payload) {
     createdAt: new Date().toISOString()
   });
 }
+
+export async function clearQueuedChecklistReplaces(tripId) {
+  const queueItems = await db.syncQueue.toArray();
+  const matchingIds = queueItems
+    .filter(
+      (item) =>
+        item.entity === 'tripChecklist' &&
+        item.action === 'replace' &&
+        String(item.payload?.trip_id) === String(tripId)
+    )
+    .map((item) => item.id);
+
+  if (matchingIds.length) {
+    await db.syncQueue.bulkDelete(matchingIds);
+  }
+}

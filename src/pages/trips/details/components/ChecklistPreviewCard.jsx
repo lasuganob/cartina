@@ -1,9 +1,20 @@
-import { Box, Button, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
+import { useEffect, useState } from 'react';
+import { Box, Button, Card, CardContent, Chip, Pagination, Stack, Typography } from '@mui/material';
 import { formatCurrency } from '../../../../utils/formatCurrency';
 
+const ITEMS_PER_PAGE = 5;
+
 export default function ChecklistPreviewCard({ items, onBuildChecklist }) {
+  const [page, setPage] = useState(1);
   const sortedItems = items.slice().sort((a, b) => a.sort_order - b.sort_order);
-  const visibleItems = sortedItems.slice(0, 5);
+  const pageCount = Math.max(1, Math.ceil(sortedItems.length / ITEMS_PER_PAGE));
+  const visibleItems = sortedItems.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    if (page > pageCount) {
+      setPage(pageCount);
+    }
+  }, [page, pageCount]);
 
   return (
     <Card>
@@ -68,9 +79,23 @@ export default function ChecklistPreviewCard({ items, onBuildChecklist }) {
               </Card>
             ))}
             {items.length > visibleItems.length ? (
-              <Typography variant="body2" color="text.secondary">
-                Showing {visibleItems.length} of {items.length} checklist items.
-              </Typography>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                justifyContent="space-between"
+                alignItems={{ xs: 'flex-start', sm: 'center' }}
+                spacing={1.5}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  Showing {(page - 1) * ITEMS_PER_PAGE + 1}-{Math.min(page * ITEMS_PER_PAGE, items.length)} of {items.length} checklist items.
+                </Typography>
+                <Pagination
+                  page={page}
+                  count={pageCount}
+                  color="primary"
+                  size="small"
+                  onChange={(_, value) => setPage(value)}
+                />
+              </Stack>
             ) : null}
           </Stack>
         )}
