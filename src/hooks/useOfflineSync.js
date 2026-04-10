@@ -2,7 +2,14 @@ import { useEffect, useState } from 'react';
 import { apiClient } from '../api/client';
 import { db } from '../lib/db';
 
-async function processQueue() {
+let inFlightQueueSync = null;
+
+export async function processQueue() {
+  if (inFlightQueueSync) {
+    return inFlightQueueSync;
+  }
+
+  inFlightQueueSync = (async () => {
   const pendingItems = await db.syncQueue.where('status').equals('pending').toArray();
 
   for (const item of pendingItems) {
@@ -15,11 +22,28 @@ async function processQueue() {
         await apiClient.updateTrip(item.payload);
       }
 
+      if (item.entity === 'tripChecklist' && item.action === 'replace') {
+        await apiClient.replaceTripChecklist(item.payload);
+      }
+
       await db.syncQueue.update(item.id, { status: 'synced' });
     } catch (error) {
       await db.syncQueue.update(item.id, { status: 'failed', error: error.message });
     }
   }
+  })().finally(() => {
+    inFlightQueueSync = null;
+  });
+
+  return inFlightQueueSync;
+}
+
+export async function processQueueIfOnline() {
+  if (!navigator.onLine) {
+    return;
+  }
+
+  return processQueue();
 }
 
 export function useOfflineSync() {

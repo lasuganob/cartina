@@ -74,5 +74,11 @@ export const apiClient = {
       method: 'POST',
       body: payload
     });
+  },
+  replaceTripChecklist(payload) {
+    return request('/trip-checklist/replace', {
+      method: 'POST',
+      body: payload
+    });
   }
 };

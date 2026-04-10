@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { apiClient } from '../api/client';
 import { queueMutation, db } from '../lib/db';
 import { useAppContext } from '../context/AppContext';
+import { processQueueIfOnline } from './useOfflineSync';
 
 let inFlightTripsSync = null;
 
@@ -22,7 +23,9 @@ function normalizeTrip(trip) {
 function normalizeChecklistItem(item) {
   return {
     ...item,
+    item_name: item.item_name || '',
     inventory_item_id: item.inventory_item_id || '',
+    quantity: Math.max(1, Number(item.quantity || 1)),
     planned_price:
       item.planned_price === '' || item.planned_price === null || item.planned_price === undefined
         ? null
@@ -202,6 +205,7 @@ export function useTrips() {
 
     await db.trips.put(trip);
     await queueMutation('trips', 'create', trip);
+    await processQueueIfOnline();
     showSnackbar('Trip saved locally and queued for sync.', 'success');
   }
 
@@ -220,8 +224,48 @@ export function useTrips() {
 
     await db.trips.put(updatedTrip);
     await queueMutation('trips', 'update', updatedTrip);
+    await processQueueIfOnline();
     showSnackbar('Trip updated locally and queued for sync.', 'success');
     return updatedTrip;
+  }
+
+  async function replaceTripChecklist(tripId, items) {
+    const normalizedItems = items.map((item, index) =>
+      normalizeChecklistItem({
+        id: item.id || crypto.randomUUID(),
+        trip_id: tripId,
+        item_name: item.item_name || item.inventory_item?.name || '',
+        inventory_item_id: item.inventory_item_id || '',
+        quantity: item.quantity || 1,
+        planned_price: item.planned_price,
+        actual_price: item.actual_price,
+        is_purchased: item.is_purchased,
+        is_unplanned: item.is_unplanned,
+        sort_order: item.sort_order ?? index,
+        created_at: item.created_at || new Date().toISOString()
+      })
+    );
+
+    await db.transaction('rw', db.tripChecklist, async () => {
+      const existingItems = await db.tripChecklist.where('trip_id').equals(tripId).toArray();
+
+      if (existingItems.length) {
+        await db.tripChecklist.bulkDelete(existingItems.map((item) => item.id));
+      }
+
+      if (normalizedItems.length) {
+        await db.tripChecklist.bulkPut(normalizedItems);
+      }
+    });
+
+    await queueMutation('tripChecklist', 'replace', {
+      trip_id: tripId,
+      items: normalizedItems
+    });
+
+    await processQueueIfOnline();
+    showSnackbar('Checklist saved locally.', 'success');
+    return normalizedItems;
   }
 
   const stats = useMemo(() => {
@@ -244,6 +288,7 @@ export function useTrips() {
     error,
     addTrip,
     updateTrip,
+    replaceTripChecklist,
     stats
   };
 }

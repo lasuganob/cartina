@@ -2,8 +2,14 @@ import { Card, CardContent, Stack, Typography } from '@mui/material';
 import { formatCurrency } from '../../../../utils/formatCurrency';
 
 export default function BudgetSnapshotCard({ trip }) {
-  const plannedTotal = trip.items.reduce((sum, item) => sum + Number(item.planned_price || 0), 0);
-  const actualTotal = trip.items.reduce((sum, item) => sum + Number(item.actual_price || 0), 0);
+  const plannedTotal = trip.items.reduce(
+    (sum, item) => sum + Number(item.planned_price || 0) * Number(item.quantity || 1),
+    0
+  );
+  const actualTotal = trip.items.reduce(
+    (sum, item) => sum + Number(item.actual_price || 0) * Number(item.quantity || 1),
+    0
+  );
   const remainingBudget = trip.budget - actualTotal;
 
   return (

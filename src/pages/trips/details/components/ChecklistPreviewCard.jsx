@@ -46,6 +46,9 @@ export default function ChecklistPreviewCard({ items, onBuildChecklist }) {
                       </Stack>
 
                       <Typography variant="body2" color="text.secondary">
+                        Quantity: {item.quantity || 1}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
                         Planned: {item.planned_price == null ? 'Not set' : formatCurrency(item.planned_price)}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">

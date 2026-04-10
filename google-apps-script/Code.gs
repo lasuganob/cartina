@@ -46,6 +46,13 @@ function doPost(e) {
       });
     }
 
+    if (path === "/trip-checklist/replace") {
+      return jsonResponse_({
+        success: true,
+        items: replaceTripChecklist_(payload),
+      });
+    }
+
     return jsonResponse_({ success: false, message: "Route not found." });
   } catch (error) {
     return jsonResponse_({ success: false, message: error.message });
@@ -188,6 +195,7 @@ function getTripChecklist_() {
     "trip_id",
     "inventory_item_id",
     "item_name",
+    "quantity",
     "planned_price",
     "actual_price",
     "is_purchased",
@@ -195,6 +203,84 @@ function getTripChecklist_() {
     "sort_order",
     "created_at",
   ]);
+}
+
+function replaceTripChecklist_(payload) {
+  if (!payload.trip_id) {
+    throw new Error("trip_id is required.");
+  }
+
+  var items = Array.isArray(payload.items) ? payload.items : [];
+  var sheet = getOrCreateSheet_(SHEET_NAMES.tripChecklist, [
+    "id",
+    "trip_id",
+    "inventory_item_id",
+    "item_name",
+    "quantity",
+    "planned_price",
+    "actual_price",
+    "is_purchased",
+    "is_unplanned",
+    "sort_order",
+    "created_at",
+  ]);
+  var values = sheet.getDataRange().getValues();
+  var headers = values[0];
+  var tripIdIndex = headers.indexOf("trip_id");
+
+  for (var rowIndex = values.length - 1; rowIndex >= 1; rowIndex -= 1) {
+    if (String(values[rowIndex][tripIdIndex]) === String(payload.trip_id)) {
+      sheet.deleteRow(rowIndex + 1);
+    }
+  }
+
+  if (!items.length) {
+    return [];
+  }
+
+  var normalizedItems = items.map(function (item, index) {
+    return {
+      id: item.id || Utilities.getUuid(),
+      trip_id: payload.trip_id,
+      inventory_item_id: item.inventory_item_id || "",
+      item_name: item.item_name || "",
+      quantity: Math.max(1, Number(item.quantity || 1)),
+      planned_price:
+        item.planned_price === "" || item.planned_price == null
+          ? ""
+          : Number(item.planned_price),
+      actual_price:
+        item.actual_price === "" || item.actual_price == null
+          ? ""
+          : Number(item.actual_price),
+      is_purchased: item.is_purchased === true || item.is_purchased === "true",
+      is_unplanned: item.is_unplanned === true || item.is_unplanned === "true",
+      sort_order: Number(item.sort_order != null ? item.sort_order : index),
+      created_at: item.created_at || new Date().toISOString(),
+    };
+  });
+
+  var rows = normalizedItems.map(function (item) {
+    return [
+      item.id,
+      item.trip_id,
+      item.inventory_item_id,
+      item.item_name,
+      item.quantity,
+      item.planned_price,
+      item.actual_price,
+      item.is_purchased,
+      item.is_unplanned,
+      item.sort_order,
+      item.created_at,
+    ];
+  });
+
+  sheet
+    .getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length)
+    .setValues(rows);
+
+  return normalizedItems;
 }
 
 function getInventoryItems_() {

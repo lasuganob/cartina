@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Alert, Button, Card, CardContent, Grid, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Grid, Stack, Typography } from '@mui/material';
 import { NavLink, useParams } from 'react-router-dom';
 import PageHeader from '../../../components/PageHeader';
 import StatusChip from '../../../components/StatusChip';
 import { useAppContext } from '../../../context/AppContext';
 import { useTrips } from '../../../hooks/useTrips';
 import BudgetSnapshotCard from './components/BudgetSnapshotCard';
+import BuildChecklistDialog from './components/BuildChecklistDialog';
 import ChecklistPreviewCard from './components/ChecklistPreviewCard';
 import DetailSkeleton from './components/DetailSkeleton';
 import QuickActionsCard from './components/QuickActionsCard';
@@ -14,8 +15,9 @@ import TripDetailsCard from './components/TripDetailsCard';
 export default function TripDetailsPage() {
   const { tripId } = useParams();
   const { showSnackbar } = useAppContext();
-  const { trips, loading, error, updateTrip } = useTrips();
+  const { trips, loading, error, updateTrip, replaceTripChecklist } = useTrips();
   const [busy, setBusy] = useState(false);
+  const [checklistDialogOpen, setChecklistDialogOpen] = useState(false);
 
   const trip = trips.find((item) => String(item.id) === String(tripId));
 
@@ -41,7 +43,7 @@ export default function TripDetailsPage() {
   }
 
   function handleBuildChecklist() {
-    showSnackbar('Checklist builder is the next page to implement.', 'info');
+    setChecklistDialogOpen(true);
   }
 
   function handleArchiveTrip() {
@@ -108,14 +110,6 @@ export default function TripDetailsPage() {
         </Grid>
         <Grid size={{ xs: 12, lg: 3 }}>
           <Stack spacing={3}>
-            <QuickActionsCard
-              trip={trip}
-              busy={busy}
-              onStartTrip={() => handleStatusChange('in_progress')}
-              onBuildChecklist={handleBuildChecklist}
-              onMarkComplete={() => handleStatusChange('completed')}
-              onArchiveTrip={handleArchiveTrip}
-            />
             <BudgetSnapshotCard trip={trip} />
             <Card>
               <CardContent>
@@ -141,6 +135,29 @@ export default function TripDetailsPage() {
           </Stack>
         </Grid>
       </Grid>
+      <QuickActionsCard
+        trip={trip}
+        busy={busy}
+        onStartTrip={() => handleStatusChange('in_progress')}
+        onBuildChecklist={handleBuildChecklist}
+        onMarkComplete={() => handleStatusChange('completed')}
+        onArchiveTrip={handleArchiveTrip}
+      />
+      <BuildChecklistDialog
+        open={checklistDialogOpen}
+        trip={trip}
+        busy={busy}
+        onClose={() => setChecklistDialogOpen(false)}
+        onSave={async (items) => {
+          setBusy(true);
+          try {
+            await replaceTripChecklist(trip.id, items);
+            setChecklistDialogOpen(false);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
     </>
   );
 }
