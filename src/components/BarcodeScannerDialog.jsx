@@ -28,20 +28,17 @@ export default function BarcodeScannerDialog({ open, onClose, onScanSuccess }) {
     setIsDesktop(isDesktopDevice);
 
     let html5QrCode = null;
-    let isCleaningUp = false;
+    let isActive = true;
 
     async function startScanner() {
-      if (!open) return;
-      if (isDesktopDevice) {
-        setLoading(false);
-        return;
-      }
+      if (!open || isDesktopDevice) return;
 
       setLoading(true);
       setError('');
 
-      // Wait for Dialog transition
-      await new Promise((resolve) => setTimeout(resolve, 350));
+      // Wait a bit longer for the Dialog transition to finish completely
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (!isActive) return;
 
       const element = document.getElementById(regionId);
       if (!element) {
@@ -62,31 +59,31 @@ export default function BarcodeScannerDialog({ open, onClose, onScanSuccess }) {
         await html5QrCode.start(
           { facingMode: 'environment' }, 
           config,
-          handleScan,
-          () => {}
+          (decodedText) => {
+            // Check if we are still active before stopping
+            if (isActive && scannerRef.current && scannerRef.current.isScanning) {
+              scannerRef.current.stop().then(() => {
+                onScanSuccess(decodedText);
+                onClose();
+              }).catch(err => {
+                console.error('Failed to stop scanner on success:', err);
+                onScanSuccess(decodedText);
+                onClose();
+              });
+            }
+          },
+          () => {} // Ignored failure
         );
         
-        setLoading(false);
+        if (isActive) {
+          setLoading(false);
+        }
       } catch (err) {
         console.error('Error starting scanner:', err);
-        setError('Could not access camera. Please check permissions and device availability.');
-        setLoading(false);
-      }
-    }
-
-    async function handleScan(decodedText) {
-      if (isCleaningUp) return;
-      
-      try {
-        if (scannerRef.current && scannerRef.current.isScanning) {
-          await scannerRef.current.stop();
+        if (isActive) {
+          setError('Could not access camera. Please check permissions and device availability.');
+          setLoading(false);
         }
-        onScanSuccess(decodedText);
-        onClose();
-      } catch (err) {
-        console.error('Error during scan success cleanup:', err);
-        onScanSuccess(decodedText);
-        onClose();
       }
     }
 
@@ -95,14 +92,14 @@ export default function BarcodeScannerDialog({ open, onClose, onScanSuccess }) {
     }
 
     return () => {
-      isCleaningUp = true;
+      isActive = false;
       if (scannerRef.current) {
-        if (scannerRef.current.isScanning) {
-          scannerRef.current.stop().catch(() => {}).finally(() => {
-            scannerRef.current = null;
+        const instance = scannerRef.current;
+        scannerRef.current = null;
+        if (instance.isScanning) {
+          instance.stop().catch(err => {
+            console.warn('Silent stop on unmount:', err);
           });
-        } else {
-          scannerRef.current = null;
         }
       }
     };
