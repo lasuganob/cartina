@@ -9,62 +9,86 @@ import {
   IconButton,
   Stack,
   TextField,
-  Typography
+  Typography,
+  useMediaQuery,
+  useTheme,
+  Box
 } from '@mui/material';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import { formatCurrency } from '../../../../../utils/formatCurrency';
 
 export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   return (
-    <Card variant="outlined">
-      <CardContent>
+    <Card variant="outlined" sx={{ borderRadius: 2 }}>
+      <CardContent sx={{ p: isMobile ? 1.5 : 2 }}>
         <Stack spacing={2}>
           <Stack
             direction={{ xs: 'column', sm: 'row' }}
             justifyContent="space-between"
             spacing={1}
+            alignItems={{ xs: 'flex-start', sm: 'center' }}
           >
             <Stack>
-              <Typography variant="h6">Checklist Items</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Edit quantities, planned spend, and purchase state for the full checklist.
-              </Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Checklist Items</Typography>
+              {!isMobile && (
+                <Typography variant="body2" color="text.secondary">
+                  Manage quantities, spend, and purchase states.
+                </Typography>
+              )}
             </Stack>
-            <Chip label={`${draftItems.length} item${draftItems.length === 1 ? '' : 's'}`} variant="outlined" />
+            <Chip label={`${draftItems.length} item${draftItems.length === 1 ? '' : 's'}`} variant="outlined" size={isMobile ? "small" : "medium"} />
           </Stack>
 
           {!draftItems.length ? (
-            <Typography color="text.secondary">
-              No checklist items yet. Add an inventory item or custom item above.
+            <Typography color="text.secondary" variant="body2" sx={{ py: 2, textAlign: 'center' }}>
+              No checklist items yet. Add an item above to get started.
             </Typography>
           ) : (
             <Stack spacing={2}>
               {draftItems.map((item, index) => (
-                <Card key={item.id || `${item.item_name}-${index}`} variant="outlined">
-                  <CardContent>
+                <Card key={item.id || `${item.item_name}-${index}`} variant="outlined" sx={{ borderRadius: 1.5 }}>
+                  <CardContent sx={{ p: isMobile ? 1.5 : 2 }}>
                     <Stack spacing={2}>
                       <Stack
-                        direction={{ xs: 'row' }}
+                        direction="row"
                         justifyContent="space-between"
                         spacing={1.5}
-                        alignItems={{ xs: 'center' }}
+                        alignItems="flex-start"
                       >
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <Typography variant="subtitle1">
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: isMobile ? '0.9rem' : '1rem' }}>
                             {item.item_name || item.inventory_item?.name || 'Untitled item'}
                           </Typography>
                           {item.inventory_item?.category ? (
-                            <Chip label={item.inventory_item.category.name} size="small" />
+                            <Chip label={item.inventory_item.category.name} size="small" variant="tonal" sx={{ fontSize: '0.7rem', height: 20 }} />
                           ) : null}
-                          {item.is_unplanned ? <Chip label="Custom" size="small" /> : null}
+                          {item.is_unplanned ? <Chip label="Custom" size="small" color="info" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} /> : null}
                         </Stack>
-                        <IconButton color="error" onClick={() => removeItem(index)}>
-                          <DeleteRoundedIcon />
+                        <IconButton size="small" color="error" onClick={() => removeItem(index)} sx={{ mt: -0.5, mr: -0.5 }}>
+                          <DeleteRoundedIcon fontSize="small" />
                         </IconButton>
                       </Stack>
 
-                      <Grid container spacing={2}>
-                        <Grid size={{ xs: 12, md: 5 }}>
+                      <Grid container spacing={1.5}>
+                        <Grid size={{ xs: 4, md: 2 }}>
+                          <TextField
+                            fullWidth
+                            label="Qty"
+                            type="number"
+                            value={item.quantity}
+                            onChange={(event) =>
+                              updateItem(index, {
+                                quantity: Math.max(1, Number(event.target.value || 1))
+                              })
+                            }
+                            inputProps={{ min: 1 }}
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 8, md: 4 }}>
                           <TextField
                             fullWidth
                             label="Item Name"
@@ -77,26 +101,13 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
                                 inventory_item: null
                               })
                             }
+                            size="small"
                           />
                         </Grid>
                         <Grid size={{ xs: 6, md: 2 }}>
                           <TextField
                             fullWidth
-                            label="Quantity"
-                            type="number"
-                            value={item.quantity}
-                            onChange={(event) =>
-                              updateItem(index, {
-                                quantity: Math.max(1, Number(event.target.value || 1))
-                              })
-                            }
-                            inputProps={{ min: 1 }}
-                          />
-                        </Grid>
-                        <Grid size={{ xs: 6, md: 2 }}>
-                          <TextField
-                            fullWidth
-                            label="Planned Price"
+                            label={isMobile ? "Planned" : "Planned Price"}
                             type="number"
                             value={item.planned_price}
                             onChange={(event) =>
@@ -105,12 +116,13 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
                               })
                             }
                             inputProps={{ min: 0, step: '0.01' }}
+                            size="small"
                           />
                         </Grid>
-                        <Grid size={{ xs: 12, md: 3 }}>
+                        <Grid size={{ xs: 6, md: 2 }}>
                           <TextField
                             fullWidth
-                            label="Actual Price"
+                            label={isMobile ? "Actual" : "Actual Price"}
                             type="number"
                             value={item.actual_price}
                             onChange={(event) =>
@@ -119,42 +131,47 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
                               })
                             }
                             inputProps={{ min: 0, step: '0.01' }}
+                            size="small"
                           />
                         </Grid>
-                        <Grid size={{ xs: 12 }}>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                            Line Total
-                          </Typography>
-                          <Typography variant="body1" fontWeight={600}>
-                            {formatCurrency(Number(item.planned_price || 0) * Number(item.quantity || 0))}
-                          </Typography>
+                        <Grid size={{ xs: 12, md: 2 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'flex-end' : 'flex-start' }}>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography variant="caption" color="text.secondary">
+                              Total
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: 'primary.main' }}>
+                              {formatCurrency(Number(item.planned_price || 0) * Number(item.quantity || 0))}
+                            </Typography>
+                          </Stack>
                         </Grid>
                       </Grid>
 
-                      <Divider />
+                      <Divider sx={{ borderStyle: 'dashed' }} />
 
-                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                      <Stack direction="row" spacing={2} sx={{ mt: -0.5 }}>
                         <FormControlLabel
                           control={
                             <Checkbox
+                              size="small"
                               checked={item.is_purchased}
                               onChange={(event) =>
                                 updateItem(index, { is_purchased: event.target.checked })
                               }
                             />
                           }
-                          label="Purchased"
+                          label={<Typography variant="body2">Purchased</Typography>}
                         />
                         <FormControlLabel
                           control={
                             <Checkbox
+                              size="small"
                               checked={item.is_unplanned}
                               onChange={(event) =>
                                 updateItem(index, { is_unplanned: event.target.checked })
                               }
                             />
                           }
-                          label="Mark as custom"
+                          label={<Typography variant="body2">Custom</Typography>}
                         />
                       </Stack>
                     </Stack>

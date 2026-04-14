@@ -75,7 +75,26 @@ export const apiClient = {
       body: payload
     });
   },
+  createInventoryItem(payload) {
+    return request('/inventory-items', {
+      method: 'POST',
+      body: payload
+    });
+  },
+  updateInventoryItem(payload) {
+    return request('/inventory-items/update', {
+      method: 'POST',
+      body: payload
+    });
+  },
+  deleteInventoryItem(payload) {
+    return request('/inventory-items/delete', {
+      method: 'POST',
+      body: payload
+    });
+  },
   replaceTripChecklist(payload) {
+    console.log('payload', payload);
     return request('/trip-checklist/replace', {
       method: 'POST',
       body: payload

@@ -9,7 +9,9 @@ import App from './App';
 import { ThemeModeProvider } from './context/ThemeModeContext';
 import { AppProvider } from './context/AppContext';
 
-registerSW({ immediate: true });
+if (import.meta.env.PROD) {
+  registerSW({ immediate: true });
+}
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

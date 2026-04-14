@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Button,
@@ -7,15 +6,21 @@ import {
   DialogContent,
   DialogTitle,
   Stack,
-  Typography
+  Typography,
+  useTheme,
+  useMediaQuery,
+  IconButton,
+  Box
 } from '@mui/material';
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../../lib/db';
 import BudgetRunningTotal from './BuildChecklistDialogComponents/BudgetRunningTotal';
 import AddItem from './BuildChecklistDialogComponents/AddItem';
 import ChecklistItems from './BuildChecklistDialogComponents/ChecklistItems';
+import { useState, useMemo, useEffect } from 'react';
 
 function buildDraftItem(item, index) {
   return {
@@ -23,6 +28,7 @@ function buildDraftItem(item, index) {
     trip_id: item.trip_id,
     item_name: item.item_name || item.inventory_item?.name || '',
     inventory_item_id: item.inventory_item_id || '',
+    barcode: item.barcode || item.inventory_item?.barcode || '',
     quantity: Math.max(1, Number(item.quantity || 1)),
     planned_price: item.planned_price ?? item.inventory_item?.usual_price ?? '',
     actual_price: item.actual_price ?? '',
@@ -51,6 +57,9 @@ function getDuplicateIndex(items, candidate) {
 }
 
 export default function BuildChecklistDialog({ open, trip, busy, onClose, onSave }) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   const inventoryData =
     useLiveQuery(async () => {
       const [inventoryItems, categories] = await Promise.all([
@@ -151,6 +160,7 @@ export default function BuildChecklistDialog({ open, trip, busy, onClose, onSave
     return {
       item_name: itemName,
       inventory_item_id: selectedOption?.id || '',
+      barcode: selectedOption?.barcode || '',
       quantity: Math.max(1, Number(addDraft.quantity || 1)),
       planned_price:
         addDraft.planned_price === '' || addDraft.planned_price == null
@@ -241,13 +251,36 @@ export default function BuildChecklistDialog({ open, trip, busy, onClose, onSave
         disableEscapeKeyDown
         fullWidth
         maxWidth="lg"
+        fullScreen={isMobile}
+        PaperProps={{
+          sx: {
+            borderRadius: isMobile ? 0 : 1,
+            bgcolor: 'background.default'
+          }
+        }}
       >
-        <DialogTitle>Build Checklist</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={3}>
-            <Alert severity="info">
-              Build the trip checklist from your inventory or add custom one-off items. Duplicate
-              additions can be merged into an existing row by increasing quantity.
+        <DialogTitle sx={{ 
+          m: 0, 
+          p: 2, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.paper'
+        }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>Build Checklist</Typography>
+          {isMobile ? (
+            <IconButton onClick={onClose} disabled={busy} edge="end">
+              <CloseRoundedIcon />
+            </IconButton>
+          ) : null}
+        </DialogTitle>
+        <DialogContent sx={{ p: isMobile ? 1.5 : 3 }}>
+          <Stack spacing={isMobile ? 2 : 3} sx={{ mt: 1 }}>
+            <Alert severity="info" sx={{ borderRadius: 2 }}>
+              Build the trip checklist from your inventory. 
+              {isMobile ? '' : ' Duplicate additions can be merged into an existing row.'}
             </Alert>
 
             <BudgetRunningTotal 
@@ -263,21 +296,49 @@ export default function BuildChecklistDialog({ open, trip, busy, onClose, onSave
               handleAddItem={handleAddItem}
             />
 
-            <ChecklistItems 
-              draftItems={draftItems}
-              updateItem={updateItem}
-              removeItem={removeItem}
-            />
-
+            <Box sx={{ pb: isMobile ? 10 : 0 }}>
+              <ChecklistItems 
+                draftItems={draftItems}
+                updateItem={updateItem}
+                removeItem={removeItem}
+              />
+            </Box>
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={onClose} disabled={busy} sx={{ width: "100%" }} startIcon={<CancelRoundedIcon />}>
-            Cancel
-          </Button>
-          <Button variant="contained" onClick={handleSave} disabled={busy} sx={{ width: "100%" }} startIcon={<SaveRoundedIcon />}>
-            {busy ? 'Saving...' : 'Save Checklist'}
-          </Button>
+        <DialogActions sx={{ 
+          px: 3, 
+          py: 2, 
+          borderTop: '1px solid', 
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
+          position: isMobile ? 'fixed' : 'relative',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: theme.zIndex.modal + 1
+        }}>
+          <Stack direction="row" spacing={2} sx={{ width: '100%' }}>
+            {!isMobile && (
+              <Button 
+                variant="outlined"
+                onClick={onClose} 
+                disabled={busy} 
+                sx={{ flex: 1, borderRadius: 2 }} 
+                startIcon={<CancelRoundedIcon />}
+              >
+                Cancel
+              </Button>
+            )}
+            <Button 
+              variant="contained" 
+              onClick={handleSave} 
+              disabled={busy} 
+              sx={{ flex: 2, borderRadius: 2, py: isMobile ? 1.5 : 1 }} 
+              startIcon={<SaveRoundedIcon />}
+            >
+              {busy ? 'Saving...' : 'Save Checklist'}
+            </Button>
+          </Stack>
         </DialogActions>
       </Dialog>
 

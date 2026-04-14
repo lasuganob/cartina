@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -295,9 +295,13 @@ export default function TripShoppingPage() {
     setShowUnplannedForm(false);
   }
 
-  async function handleScanSuccess(barcode) {
+  const handleCloseScanner = useCallback(() => {
+    setScannerOpen(false);
+  }, []);
+
+  const handleScanSuccess = useCallback(async (barcode) => {
     // 1. Search in current draft items for a match
-    const existingIndex = draftItems.findIndex((item) => item.barcode === barcode);
+    const existingIndex = draftItems.findIndex((item) => item.barcode == barcode);
     if (existingIndex !== -1) {
       // Auto-check the item
       handleUpdateItem(existingIndex, { is_purchased: true });
@@ -318,7 +322,7 @@ export default function TripShoppingPage() {
     } finally {
       setBusy(false);
     }
-  }
+  }, [draftItems, lookup]);
 
   async function handlePauseResume() {
     setSessionState((current) => {
@@ -450,6 +454,15 @@ export default function TripShoppingPage() {
                       Scan Barcode
                     </Button>
                   </Stack>
+                  
+                  {scannerOpen ? (
+                    <BarcodeScannerDialog
+                      open={scannerOpen}
+                      onClose={handleCloseScanner}
+                      onScanSuccess={handleScanSuccess}
+                      variant="inline"
+                    />
+                  ) : null}
 
                   {showUnplannedForm ? (
                     <UnplannedItemForm
@@ -510,11 +523,7 @@ export default function TripShoppingPage() {
         handlePauseResume={handlePauseResume}
       />
 
-      <BarcodeScannerDialog 
-        open={scannerOpen} 
-        onClose={() => setScannerOpen(false)} 
-        onScanSuccess={handleScanSuccess}
-      />
+      {/* Scanner is now inline above, but we keep the logic the same */}
     </>
   );
 }

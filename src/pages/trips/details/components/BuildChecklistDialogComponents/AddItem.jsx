@@ -1,4 +1,4 @@
-import { Autocomplete, Card, CardContent, Grid, IconButton, Stack, TextField, Typography } from '@mui/material';
+import { Autocomplete, Button, Card, CardContent, Grid, Stack, TextField, Typography, useMediaQuery, useTheme } from '@mui/material';
 import AddBoxRoundedIcon from '@mui/icons-material/AddBoxRounded';
 import { formatCurrency } from '../../../../../utils/formatCurrency';
 
@@ -11,17 +11,20 @@ function getInventoryLabel(option) {
 }
 
 export default function AddItem({ inventoryData, addDraft, setAddDraft, handleAddItem }) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   return (
-    <Card variant="outlined">
-      <CardContent>
+    <Card variant="outlined" sx={{ borderRadius: 2 }}>
+      <CardContent sx={{ p: isMobile ? 1.5 : 2 }}>
         <Stack spacing={2}>
           <Stack>
-            <Typography variant="h6">Add Item</Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Add Item</Typography>
             <Typography variant="body2" color="text.secondary">
-              Choose an existing inventory item or type a custom checklist entry.
+              Choose from inventory or type custom entry.
             </Typography>
           </Stack>
-          <Grid container spacing={2}>
+          <Grid container spacing={2} alignItems="flex-end">
             <Grid size={{ xs: 12, md: 6 }}>
               <Autocomplete
                 freeSolo
@@ -73,14 +76,15 @@ export default function AddItem({ inventoryData, addDraft, setAddDraft, handleAd
                   </li>
                 )}
                 renderInput={(params) => (
-                  <TextField {...params} label="Inventory or Custom Item" fullWidth />
+                  <TextField {...params} label="Item Name" fullWidth />
                 )}
+                size="small"
               />
             </Grid>
-            <Grid size={{ xs: 5, md: 2 }}>
+            <Grid size={{ xs: 6, md: 2 }}>
               <TextField
                 fullWidth
-                label="Quantity"
+                label="Qty"
                 type="number"
                 value={addDraft.quantity}
                 onChange={(event) =>
@@ -90,12 +94,13 @@ export default function AddItem({ inventoryData, addDraft, setAddDraft, handleAd
                   }))
                 }
                 inputProps={{ min: 1 }}
+                size="small"
               />
             </Grid>
-            <Grid size={{ xs: 5, md: 3 }}>
+            <Grid size={{ xs: 6, md: 3 }}>
               <TextField
                 fullWidth
-                label="Planned Price"
+                label="Price"
                 type="number"
                 value={addDraft.planned_price}
                 onChange={(event) =>
@@ -105,17 +110,25 @@ export default function AddItem({ inventoryData, addDraft, setAddDraft, handleAd
                   }))
                 }
                 inputProps={{ min: 0, step: '0.01' }}
+                size="small"
               />
             </Grid>
-            <Grid size={{ xs: 2, md: 1 }}>
-              <IconButton
-                fullwidth="true"
+            <Grid size={{ xs: 12, md: 1 }}>
+              <Button
+                fullWidth
                 variant="contained"
                 onClick={handleAddItem}
                 disabled={!addDraft.item_name || !addDraft.quantity || !addDraft.planned_price}
+                startIcon={isMobile ? <AddBoxRoundedIcon /> : null}
+                sx={{ 
+                  height: 40, 
+                  minWidth: { md: 40 },
+                  borderRadius: 1.5,
+                  p: { md: 0 } 
+                }}
               >
-                <AddBoxRoundedIcon sx={{ color: 'rgb(74, 101, 85)', fontSize: 35 }} />
-              </IconButton>
+                {isMobile ? 'Add Item' : <AddBoxRoundedIcon sx={{ fontSize: 28 }} />}
+              </Button>
             </Grid>
           </Grid>
         </Stack>

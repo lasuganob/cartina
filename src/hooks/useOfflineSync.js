@@ -4,6 +4,73 @@ import { db } from '../lib/db';
 
 let inFlightQueueSync = null;
 
+async function reconcileCreatedInventoryItem(localItem, syncedItem) {
+  if (!localItem || !syncedItem) {
+    return;
+  }
+
+  if (String(localItem.id) === String(syncedItem.id)) {
+    await db.inventoryItems.put(syncedItem);
+    return;
+  }
+
+  await db.transaction('rw', db.inventoryItems, db.tripChecklist, db.syncQueue, async () => {
+    await db.inventoryItems.delete(localItem.id);
+    await db.inventoryItems.put({ ...syncedItem });
+
+    const checklistItems = await db.tripChecklist.where('inventory_item_id').equals(localItem.id).toArray();
+    for (const checklistItem of checklistItems) {
+      await db.tripChecklist.put({
+        ...checklistItem,
+        inventory_item_id: syncedItem.id
+      });
+    }
+
+    const queueItems = await db.syncQueue.toArray();
+    const updates = queueItems
+      .filter((queueItem) => queueItem.status !== 'synced')
+      .map((queueItem) => {
+        let nextPayload = queueItem.payload;
+        let changed = false;
+
+        if (String(queueItem.payload?.id) === String(localItem.id)) {
+          nextPayload = { ...nextPayload, id: syncedItem.id };
+          changed = true;
+        }
+
+        if (String(queueItem.payload?.inventory_item_id) === String(localItem.id)) {
+          nextPayload = { ...nextPayload, inventory_item_id: syncedItem.id };
+          changed = true;
+        }
+
+        if (Array.isArray(queueItem.payload?.items)) {
+          const nextItems = queueItem.payload.items.map((item) =>
+            String(item.inventory_item_id) === String(localItem.id)
+              ? { ...item, inventory_item_id: syncedItem.id }
+              : item
+          );
+
+          if (
+            nextItems.some(
+              (item, index) =>
+                String(item.inventory_item_id || '') !== String(queueItem.payload.items[index].inventory_item_id || '')
+            )
+          ) {
+            nextPayload = { ...nextPayload, items: nextItems };
+            changed = true;
+          }
+        }
+
+        return changed ? { id: queueItem.id, payload: nextPayload } : null;
+      })
+      .filter(Boolean);
+
+    for (const update of updates) {
+      await db.syncQueue.update(update.id, { payload: update.payload });
+    }
+  });
+}
+
 async function reconcileCreatedTrip(localTrip, syncedTrip) {
   if (!localTrip || !syncedTrip) {
     return;
@@ -126,6 +193,7 @@ export async function processQueue() {
   if (inFlightQueueSync) {
     return inFlightQueueSync;
   }
+  console.log('syncing...');
 
   inFlightQueueSync = (async () => {
     const pendingItems = await db.syncQueue.where('status').equals('pending').toArray();
@@ -146,8 +214,22 @@ export async function processQueue() {
           await reconcileReplacedChecklist(item.payload.trip_id, item.payload.items, response.items);
         }
 
+        if (item.entity === 'inventoryItems' && item.action === 'create') {
+          const response = await apiClient.createInventoryItem(item.payload);
+          await reconcileCreatedInventoryItem(item.payload, response.item);
+        }
+
+        if (item.entity === 'inventoryItems' && item.action === 'update') {
+          await apiClient.updateInventoryItem(item.payload);
+        }
+
+        if (item.entity === 'inventoryItems' && item.action === 'delete') {
+          await apiClient.deleteInventoryItem(item.payload);
+        }
+
         await db.syncQueue.update(item.id, { status: 'synced' });
       } catch (error) {
+        console.log('error', error);
         await db.syncQueue.update(item.id, { status: 'failed', error: error.message });
       }
     }

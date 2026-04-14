@@ -57,6 +57,9 @@ export default function ChecklistPreviewCard({ items, onBuildChecklist }) {
                       </Stack>
 
                       <Typography variant="body2" color="text.secondary">
+                        Code: {item.barcode || ''}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
                         Quantity: {item.quantity || 1}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">

@@ -1,9 +1,9 @@
-import { Box, Button, Card, CardContent, Grid, Stack, Typography } from '@mui/material';
+import { Box, Button, Grid } from '@mui/material';
 import PlayCircleFilledWhiteRoundedIcon from '@mui/icons-material/PlayCircleFilledWhiteRounded';
 import BorderColorRoundedIcon from '@mui/icons-material/BorderColorRounded';
-import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import ArchiveRoundedIcon from '@mui/icons-material/ArchiveRounded';
 import PauseCircleFilledRoundedIcon from '@mui/icons-material/PauseCircleFilledRounded';
+import { styles } from './styles';
 
 export default function QuickActionsCard({
   trip,
@@ -36,7 +36,7 @@ export default function QuickActionsCard({
             onClick={onStartTrip}
             disabled={busy || trip.status === 'completed' || trip.status === 'archived'}
             startIcon={trip.status === 'in_progress' ? <PauseCircleFilledRoundedIcon /> : <PlayCircleFilledWhiteRoundedIcon />}
-            sx={{ fontSize: "12px" }}
+            sx={styles.quickActionButton}
           >
             {trip.status === 'in_progress' ? 'Resume Trip' : 'Start Trip'}
           </Button>
@@ -48,7 +48,7 @@ export default function QuickActionsCard({
             onClick={onBuildChecklist}
             disabled={busy || trip.status === 'completed' || trip.status === 'archived'}
             startIcon={<BorderColorRoundedIcon />}
-            sx={{ fontSize: "12px" }}
+            sx={styles.quickActionButton}
           >
             Checklist
           </Button>
@@ -60,7 +60,7 @@ export default function QuickActionsCard({
             onClick={onArchiveTrip}
             disabled={busy || trip.status === 'archived'}
             startIcon={<ArchiveRoundedIcon />}
-            sx={{ fontSize: "12px" }}
+            sx={styles.quickActionButton}
           >
             Archive Trip
           </Button>

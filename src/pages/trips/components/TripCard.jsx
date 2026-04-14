@@ -71,7 +71,7 @@ export default function TripCard({ trip }) {
             <ListItemIcon>
               <DeleteIcon fontSize="small" color="inherit" />
             </ListItemIcon>
-            <ListItemText>Delete</ListItemText>
+            <ListItemText sx={{ color: 'error.main' }}>Delete</ListItemText>
           </MenuItem>
         </Menu>
       </Box>

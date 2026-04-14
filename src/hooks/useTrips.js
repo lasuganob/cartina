@@ -52,6 +52,24 @@ function normalizeStore(store) {
   };
 }
 
+async function reapplyPendingInventoryMutations() {
+  const queueItems = await db.syncQueue.toArray();
+  const inventoryMutations = queueItems.filter(
+    (item) => item.entity === 'inventoryItems' && item.status !== 'synced'
+  );
+
+  for (const mutation of inventoryMutations) {
+    if (mutation.action === 'delete') {
+      await db.inventoryItems.delete(mutation.payload?.id);
+      continue;
+    }
+
+    if (mutation.action === 'create' || mutation.action === 'update') {
+      await db.inventoryItems.put(mutation.payload);
+    }
+  }
+}
+
 async function syncTripsFromApi() {
   if (inFlightTripsSync) {
     return inFlightTripsSync;
@@ -72,6 +90,7 @@ async function syncTripsFromApi() {
       db.stores,
       db.inventoryItems,
       db.categories,
+      db.syncQueue,
       async () => {
         await db.trips.clear();
         await db.tripChecklist.clear();
@@ -96,6 +115,8 @@ async function syncTripsFromApi() {
         if (normalizedCategories.length) {
           await db.categories.bulkPut(normalizedCategories);
         }
+
+        await reapplyPendingInventoryMutations();
       }
     );
   })().finally(() => {
@@ -181,6 +202,7 @@ export function useTrips() {
         }
         setError('');
       } catch (requestError) {
+        console.log(requestError);
         if (!cancelled) {
           setError(requestError.message);
         }
@@ -255,12 +277,20 @@ export function useTrips() {
 
   async function replaceTripChecklist(tripId, items, options = {}) {
     const { sync = true, notify = true } = options;
-    const normalizedItems = items.map((item, index) =>
-      normalizeChecklistItem({
+
+    // Fetch all inventory items once to optimize enrichment
+    const inventoryItems = await db.inventoryItems.toArray();
+    const inventoryMap = new Map(inventoryItems.map((inv) => [String(inv.id), inv]));
+
+    const normalizedItems = items.map((item, index) => {
+      const inventoryRef = item.inventory_item_id ? inventoryMap.get(String(item.inventory_item_id)) : null;
+      
+      return normalizeChecklistItem({
         id: item.id || crypto.randomUUID(),
         trip_id: tripId,
-        item_name: item.item_name || item.inventory_item?.name || '',
+        item_name: item.item_name || inventoryRef?.name || item.inventory_item?.name || '',
         inventory_item_id: item.inventory_item_id || '',
+        barcode: item.barcode || inventoryRef?.barcode || item.inventory_item?.barcode || '',
         quantity: item.quantity || 1,
         planned_price: item.planned_price,
         actual_price: item.actual_price,
@@ -268,8 +298,8 @@ export function useTrips() {
         is_unplanned: item.is_unplanned,
         sort_order: item.sort_order ?? index,
         created_at: item.created_at || new Date().toISOString()
-      })
-    );
+      });
+    });
 
     await db.transaction('rw', db.tripChecklist, async () => {
       const existingItems = await db.tripChecklist.where('trip_id').equals(tripId).toArray();

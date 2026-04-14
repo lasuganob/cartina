@@ -1,35 +1,32 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   Alert,
   Button,
   Card,
   CardContent,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  InputAdornment,
-  Menu,
-  MenuItem,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
+  Typography,
+  useTheme,
+  useMediaQuery,
   TextField,
-  Typography
+  InputAdornment,
+  Pagination,
+  Box
 } from '@mui/material';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
-import QrCodeScannerRoundedIcon from '@mui/icons-material/QrCodeScannerRounded';
+import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import { useLiveQuery } from 'dexie-react-hooks';
+
 import PageHeader from '../../components/PageHeader';
-import BarcodeScannerDialog from '../../components/BarcodeScannerDialog';
-import { db } from '../../lib/db';
-import { formatCurrency } from '../../utils/formatCurrency';
+import { useAppContext } from '../../context/AppContext';
+import { processQueueIfOnline } from '../../hooks/useOfflineSync';
+import { db, queueMutation } from '../../lib/db';
 import { useBarcodeLookup } from '../../hooks/useBarcodeLookup';
+
+import InventoryEditor from './components/InventoryEditor';
+import InventoryTable from './components/InventoryTable';
+import InventoryMobileCards from './components/InventoryMobileCards';
+import InventoryActionMenu from './components/InventoryActionMenu';
 
 const initialFormValues = {
   name: '',
@@ -37,6 +34,8 @@ const initialFormValues = {
   usual_price: '',
   barcode: ''
 };
+
+const PAGE_SIZE = 10;
 
 function normalizeInventoryItem(values, existingItem) {
   return {
@@ -78,7 +77,14 @@ export default function InventoryPage() {
   const [busy, setBusy] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [menuItem, setMenuItem] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  
   const { lookup } = useBarcodeLookup();
+  const { showSnackbar } = useAppContext();
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const categoryMap = useMemo(
     () =>
@@ -89,7 +95,7 @@ export default function InventoryPage() {
     [categories]
   );
 
-  const rows = useMemo(
+  const allRows = useMemo(
     () =>
       inventoryItems
         .slice()
@@ -101,10 +107,33 @@ export default function InventoryPage() {
     [categoryMap, inventoryItems]
   );
 
+  const filteredRows = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return allRows;
+    
+    return allRows.filter(row => 
+      String(row.name || '').toLowerCase().includes(query) ||
+      (row.barcode && String(row.barcode).toLowerCase().includes(query)) ||
+      String(row.category_name || '').toLowerCase().includes(query)
+    );
+  }, [allRows, searchQuery]);
+
+  const paginatedRows = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredRows.slice(start, start + PAGE_SIZE);
+  }, [filteredRows, page]);
+
+  const totalPages = Math.ceil(filteredRows.length / PAGE_SIZE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
+
   function handleOpenAddDialog() {
     setEditingItem(null);
     setValues(initialFormValues);
     setErrors({});
+    setScannerOpen(false);
     setDialogOpen(true);
   }
 
@@ -117,6 +146,7 @@ export default function InventoryPage() {
       barcode: item.barcode || ''
     });
     setErrors({});
+    setScannerOpen(false);
     setDialogOpen(true);
     handleCloseMenu();
   }
@@ -127,6 +157,7 @@ export default function InventoryPage() {
     }
 
     setDialogOpen(false);
+    setScannerOpen(false);
     setEditingItem(null);
     setValues(initialFormValues);
     setErrors({});
@@ -138,7 +169,7 @@ export default function InventoryPage() {
     setErrors((current) => ({ ...current, [name]: '' }));
   }
 
-  async function handleScanSuccess(barcode) {
+  const handleScanSuccess = useCallback(async (barcode) => {
     setValues((current) => ({ ...current, barcode }));
     
     setBusy(true);
@@ -155,7 +186,7 @@ export default function InventoryPage() {
     } finally {
       setBusy(false);
     }
-  }
+  }, [lookup]);
 
   async function handleSave() {
     const nextErrors = validate(values);
@@ -167,7 +198,13 @@ export default function InventoryPage() {
 
     setBusy(true);
     try {
-      await db.inventoryItems.put(normalizeInventoryItem(values, editingItem));
+      const normalizedItem = normalizeInventoryItem(values, editingItem);
+      const action = editingItem ? 'update' : 'create';
+
+      await db.inventoryItems.put(normalizedItem);
+      await queueMutation('inventoryItems', action, normalizedItem);
+      await processQueueIfOnline();
+      showSnackbar(`Inventory item ${editingItem ? 'updated' : 'saved'} locally and queued for sync.`, 'success');
       handleCloseDialog();
     } finally {
       setBusy(false);
@@ -177,6 +214,9 @@ export default function InventoryPage() {
   async function handleDelete(item) {
     handleCloseMenu();
     await db.inventoryItems.delete(item.id);
+    await queueMutation('inventoryItems', 'delete', { id: item.id });
+    await processQueueIfOnline();
+    showSnackbar('Inventory item deleted locally and queued for sync.', 'success');
   }
 
   function handleOpenMenu(event, item) {
@@ -196,147 +236,112 @@ export default function InventoryPage() {
         title="Inventory"
         description="Manage reusable grocery items and their usual prices."
         action={
-          <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={handleOpenAddDialog}>
-            Add Item
-          </Button>
+          dialogOpen ? null : (
+            <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={handleOpenAddDialog}>
+              Add Item
+            </Button>
+          )
         }
       />
 
+      {dialogOpen ? (
+        <InventoryEditor 
+          editingItem={editingItem}
+          values={values}
+          errors={errors}
+          busy={busy}
+          categories={categories}
+          scannerOpen={scannerOpen}
+          setScannerOpen={setScannerOpen}
+          onClose={handleCloseDialog}
+          onChange={handleChange}
+          onSave={handleSave}
+          onScanSuccess={handleScanSuccess}
+        />
+      ) : null}
+
       <Card>
-        <CardContent>
+        <CardContent sx={{ p: isMobile ? 1.5 : 2 }}>
+          <Box sx={{ mb: 3 }}>
+            <TextField
+              fullWidth
+              variant="outlined"
+              placeholder="Search by name, barcode, or category..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              size="small"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchRoundedIcon color="action" />
+                  </InputAdornment>
+                )
+              }}
+            />
+          </Box>
+
           {!categories.length ? (
             <Alert severity="warning" sx={{ mb: 2 }}>
               No categories found. Add category rows in Google Sheets first so inventory items can be categorized.
             </Alert>
           ) : null}
 
-          {!rows.length ? (
-            <Stack spacing={1}>
-              <Typography variant="h6">No inventory items yet</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Start by adding your staple products so trips and price history become more useful.
+          {!filteredRows.length ? (
+            <Stack spacing={1} sx={{ py: 4, textAlign: 'center' }}>
+              <Typography variant="h6">
+                {searchQuery ? 'No items match your search' : 'No inventory items yet'}
               </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {searchQuery 
+                  ? 'Try adjusting your search query or clear the filter.' 
+                  : 'Start by adding your staple products so trips and price history become more useful.'}
+              </Typography>
+              {searchQuery && (
+                <Box sx={{ mt: 1 }}>
+                  <Button variant="text" onClick={() => setSearchQuery('')}>
+                    Clear Filter
+                  </Button>
+                </Box>
+              )}
             </Stack>
           ) : (
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Category</TableCell>
-                  <TableCell>Usual Price</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {rows.map((item) => (
-                  <TableRow key={item.id} hover>
-                    <TableCell>
-                      <Stack spacing={0.5}>
-                        <Typography variant="body2" fontWeight="bold">
-                          {item.name}
-                        </Typography>
-                        {item.barcode && (
-                          <Typography variant="caption" color="text.secondary">
-                            Barcode: {item.barcode}
-                          </Typography>
-                        )}
-                      </Stack>
-                    </TableCell>
-                    <TableCell>{item.category_name}</TableCell>
-                    <TableCell>{formatCurrency(item.usual_price)}</TableCell>
-                    <TableCell align="right">
-                      <IconButton onClick={(event) => handleOpenMenu(event, item)}>
-                        <MoreVertRoundedIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <>
+              {isMobile ? (
+                <InventoryMobileCards rows={paginatedRows} onOpenMenu={handleOpenMenu} />
+              ) : (
+                <InventoryTable rows={paginatedRows} onOpenMenu={handleOpenMenu} />
+              )}
+
+              <Stack 
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={2}
+                justifyContent="space-between"
+                alignItems={{ xs: 'flex-start', sm: 'center' }}
+                sx={{ mt: 3 }}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  Showing {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, filteredRows.length)} of{' '}
+                  {filteredRows.length} items
+                </Typography>
+                <Pagination 
+                  count={totalPages} 
+                  page={page} 
+                  onChange={(_, p) => setPage(p)} 
+                  color="primary"
+                />
+              </Stack>
+            </>
           )}
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} fullWidth maxWidth="sm">
-        <DialogTitle>{editingItem ? 'Edit Item' : 'Add Item'}</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField
-              label="Barcode"
-              name="barcode"
-              value={values.barcode}
-              onChange={handleChange}
-              placeholder="Scan or enter manually"
-              disabled={busy}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton onClick={() => setScannerOpen(true)} edge="end" color="primary">
-                      <QrCodeScannerRoundedIcon />
-                    </IconButton>
-                  </InputAdornment>
-                )
-              }}
-            />
-            <TextField
-              label="Name"
-              name="name"
-              value={values.name}
-              onChange={handleChange}
-              error={Boolean(errors.name)}
-              helperText={errors.name}
-              disabled={busy}
-              required
-            />
-            <TextField
-              select
-              label="Category"
-              name="category_id"
-              value={values.category_id}
-              onChange={handleChange}
-              error={Boolean(errors.category_id)}
-              helperText={errors.category_id}
-              disabled={busy}
-              required
-            >
-              {categories.map((category) => (
-                <MenuItem key={category.id} value={category.id}>
-                  {category.name}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="Usual Price"
-              name="usual_price"
-              type="number"
-              value={values.usual_price}
-              onChange={handleChange}
-              error={Boolean(errors.usual_price)}
-              helperText={errors.usual_price}
-              disabled={busy}
-              required
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog} disabled={busy}>
-            Cancel
-          </Button>
-          <Button variant="contained" onClick={handleSave} disabled={busy}>
-            {busy ? 'Processing...' : editingItem ? 'Save Changes' : 'Add Item'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleCloseMenu}>
-        <MenuItem onClick={() => menuItem && handleOpenEditDialog(menuItem)}>Edit</MenuItem>
-        <MenuItem onClick={() => menuItem && handleDelete(menuItem)}>Delete</MenuItem>
-      </Menu>
-
-      <BarcodeScannerDialog 
-        open={scannerOpen} 
-        onClose={() => setScannerOpen(false)} 
-        onScanSuccess={handleScanSuccess}
+      <InventoryActionMenu 
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={handleCloseMenu}
+        onEdit={handleOpenEditDialog}
+        onDelete={handleDelete}
+        item={menuItem}
       />
     </>
   );

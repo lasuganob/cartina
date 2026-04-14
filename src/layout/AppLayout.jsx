@@ -1,4 +1,6 @@
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
+import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
+
 import {
   AppBar,
   Box,
@@ -18,18 +20,24 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { navigationItems } from '../constants/navigation';
+import SettingsDialog from '../components/SettingsDialog';
+
 
 const drawerWidth = 260;
 const sidebarBackground = 'rgb(74, 101, 85)';
 
 export default function AppLayout() {
   const [open, setOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   const { pathname } = useLocation();
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
 
   const navList = (
-    <Box sx={{ width: drawerWidth, height: '100%', bgcolor: sidebarBackground, color: '#f5f7f2' }}>
+    <Box sx={{ width: drawerWidth, height: '100%', bgcolor: sidebarBackground, color: '#f5f7f2', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ flexGrow: 1 }}>
+
       <Toolbar sx={{ gap: 1.5, ml: "auto", mr: "auto" }}>
         <Box
           component="img"
@@ -77,8 +85,25 @@ export default function AppLayout() {
           );
         })}
       </List>
+      </Box>
+
+      <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end' }}>
+        <IconButton 
+          onClick={() => setSettingsOpen(true)}
+          sx={{ 
+            color: 'rgba(255,255,255,0.7)',
+            '&:hover': {
+              color: '#fff',
+              bgcolor: 'rgba(255,255,255,0.1)'
+            }
+          }}
+        >
+          <SettingsRoundedIcon />
+        </IconButton>
+      </Box>
     </Box>
   );
+
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -154,6 +179,12 @@ export default function AppLayout() {
       >
         <Outlet />
       </Container>
+
+      <SettingsDialog 
+        open={settingsOpen} 
+        onClose={() => setSettingsOpen(false)} 
+      />
     </Box>
+
   );
 }

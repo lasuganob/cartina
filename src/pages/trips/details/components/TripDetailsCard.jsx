@@ -93,9 +93,10 @@ export default function TripDetailsCard({ trip, saving, onSave }) {
               onChange={handleChange}
               InputProps={{ readOnly: !isEditing }}
               required={true}
+              size="small"
             />
           </Grid>
-          <Grid size={{ xs: 5 }}>
+          <Grid size={{ xs: 12 }}>
             <DatePicker
               sx={{ width: "100%" }}
               label="Planned For"
@@ -104,10 +105,10 @@ export default function TripDetailsCard({ trip, saving, onSave }) {
               value={dayjs(draft.planned_for)}
               onChange={(value) => handleChange({ target: { name: 'planned_for', value } })}
               readOnly={!isEditing}
-              slotProps={{textField: { required: true }}}
+              slotProps={{textField: { required: true, size: "small" }}}
             />
           </Grid>
-          <Grid size={{ xs: 4 }}>
+          <Grid size={{ xs: 6 }}>
             <TextField
               fullWidth
               label="Budget"
@@ -117,9 +118,10 @@ export default function TripDetailsCard({ trip, saving, onSave }) {
               onChange={handleChange}
               InputProps={{ readOnly: !isEditing }}
               required={true}
+              size="small"
             />
           </Grid>
-          <Grid size={{ xs: 3 }}>
+          <Grid size={{ xs: 6 }}>
             <SelectStore
               label="Store"
               name="store_id"
@@ -127,6 +129,7 @@ export default function TripDetailsCard({ trip, saving, onSave }) {
               onChange={handleChange}
               readOnly={!isEditing}
               required={true}
+              size="small"
             />
           </Grid>
           <Grid size={{ xs: 12, lg: 12 }}>

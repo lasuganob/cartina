@@ -21,6 +21,15 @@ const TRIP_HEADERS = [
   "archived_at",
 ];
 
+const INVENTORY_HEADERS = [
+  "id",
+  "name",
+  "category_id",
+  "usual_price",
+  "barcode",
+  "created_at",
+];
+
 function doGet(e) {
   try {
     const path = getPath_(e);
@@ -65,6 +74,27 @@ function doPost(e) {
       return jsonResponse_({
         success: true,
         items: replaceTripChecklist_(payload),
+      });
+    }
+
+    if (path === "/inventory-items") {
+      return jsonResponse_({
+        success: true,
+        item: createInventoryItem_(payload),
+      });
+    }
+
+    if (path === "/inventory-items/update") {
+      return jsonResponse_({
+        success: true,
+        item: updateInventoryItem_(payload),
+      });
+    }
+
+    if (path === "/inventory-items/delete") {
+      return jsonResponse_({
+        success: true,
+        id: deleteInventoryItem_(payload),
       });
     }
 
@@ -246,14 +276,12 @@ function replaceTripChecklist_(payload) {
   headers = values[0];
   var tripIdIndex = headers.indexOf("trip_id");
   var nextId = getNextNumericId_(values, headers);
-
-  for (var rowIndex = values.length - 1; rowIndex >= 1; rowIndex -= 1) {
-    if (String(values[rowIndex][tripIdIndex]) === String(payload.trip_id)) {
-      sheet.deleteRow(rowIndex + 1);
-    }
-  }
+  var preservedRows = values.slice(1).filter(function (row) {
+    return String(row[tripIdIndex]) !== String(payload.trip_id);
+  });
 
   if (!items.length) {
+    rewriteSheetBody_(sheet, headers, preservedRows);
     return [];
   }
 
@@ -302,23 +330,120 @@ function replaceTripChecklist_(payload) {
       item.created_at,
     ];
   });
-
-  sheet
-    .getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length)
-    .setValues(rows);
+  rewriteSheetBody_(sheet, headers, preservedRows.concat(rows));
 
   return normalizedItems;
 }
 
 function getInventoryItems_() {
-  return getRows_(SHEET_NAMES.inventoryItems, [
-    "id",
-    "name",
-    "category_id",
-    "usual_price",
-    "barcode",
-    "created_at",
+  return getRows_(SHEET_NAMES.inventoryItems, INVENTORY_HEADERS);
+}
+
+function createInventoryItem_(payload) {
+  const headers = INVENTORY_HEADERS;
+  const sheet = getOrCreateSheet_(SHEET_NAMES.inventoryItems, headers);
+
+  const item = {
+    id: resolveRowId_(sheet, headers, payload.id),
+    name: payload.name || "",
+    category_id: payload.category_id || "",
+    usual_price:
+      payload.usual_price === "" || payload.usual_price == null
+        ? 0
+        : Number(payload.usual_price),
+    barcode: payload.barcode || "",
+    created_at: payload.created_at || new Date().toISOString(),
+  };
+
+  sheet.appendRow([
+    item.id,
+    item.name,
+    item.category_id,
+    item.usual_price,
+    item.barcode,
+    item.created_at,
   ]);
+
+  return item;
+}
+
+function updateInventoryItem_(payload) {
+  if (!payload.id) {
+    throw new Error("Inventory item id is required.");
+  }
+
+  const sheet = getOrCreateSheet_(SHEET_NAMES.inventoryItems, INVENTORY_HEADERS);
+  const values = sheet.getDataRange().getValues();
+
+  if (values.length === 1) {
+    throw new Error("Inventory item not found.");
+  }
+
+  const headers = values[0];
+  const idIndex = headers.indexOf("id");
+
+  for (var rowIndex = 1; rowIndex < values.length; rowIndex += 1) {
+    if (String(values[rowIndex][idIndex]) === String(payload.id)) {
+      const existingItem = {};
+
+      headers.forEach(function (header, index) {
+        existingItem[header] = values[rowIndex][index];
+      });
+
+      const updatedItem = {
+        ...existingItem,
+        ...payload,
+        name: payload.name != null ? payload.name : existingItem.name || "",
+        category_id:
+          payload.category_id != null
+            ? payload.category_id
+            : existingItem.category_id || "",
+        usual_price:
+          payload.usual_price === "" || payload.usual_price == null
+            ? 0
+            : Number(payload.usual_price),
+        barcode: payload.barcode != null ? payload.barcode : existingItem.barcode || "",
+        created_at: payload.created_at || existingItem.created_at || new Date().toISOString(),
+      };
+
+      const orderedRow = headers.map(function (header) {
+        return updatedItem[header] != null ? updatedItem[header] : "";
+      });
+
+      sheet
+        .getRange(rowIndex + 1, 1, 1, orderedRow.length)
+        .setValues([orderedRow]);
+
+      return updatedItem;
+    }
+  }
+
+  throw new Error("Inventory item not found.");
+}
+
+function deleteInventoryItem_(payload) {
+  if (!payload.id) {
+    throw new Error("Inventory item id is required.");
+  }
+
+  const sheet = getOrCreateSheet_(SHEET_NAMES.inventoryItems, INVENTORY_HEADERS);
+  const values = sheet.getDataRange().getValues();
+
+  if (values.length === 1) {
+    throw new Error("Inventory item not found.");
+  }
+
+  const headers = values[0];
+  const idIndex = headers.indexOf("id");
+
+  for (var rowIndex = values.length - 1; rowIndex >= 1; rowIndex -= 1) {
+    if (String(values[rowIndex][idIndex]) === String(payload.id)) {
+      sheet.deleteRow(rowIndex + 1);
+      return payload.id;
+    }
+  }
+
+  throw new Error("Inventory item not found.");
 }
 
 function getStores_() {
@@ -383,6 +508,24 @@ function getRows_(name, headers) {
     });
     return item;
   });
+}
+
+function rewriteSheetBody_(sheet, headers, rows) {
+  var maxRows = sheet.getMaxRows();
+  var numColumns = headers.length;
+  var bodyRowCount = Math.max(sheet.getLastRow() - 1, 0);
+
+  if (bodyRowCount > 0) {
+    sheet.getRange(2, 1, bodyRowCount, numColumns).clearContent();
+  }
+
+  if (rows.length) {
+    if (maxRows < rows.length + 1) {
+      sheet.insertRowsAfter(maxRows, rows.length + 1 - maxRows);
+    }
+
+    sheet.getRange(2, 1, rows.length, numColumns).setValues(rows);
+  }
 }
 
 function resolveRowId_(sheet, headers, candidateId) {
