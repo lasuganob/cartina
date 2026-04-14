@@ -12,60 +12,98 @@ import {
   Typography
 } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import QrCodeScannerRoundedIcon from '@mui/icons-material/QrCodeScannerRounded';
 import { Html5Qrcode } from 'html5-qrcode';
 
 export default function BarcodeScannerDialog({ open, onClose, onScanSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isDesktop, setIsDesktop] = useState(false);
   const scannerRef = useRef(null);
   const regionId = 'barcode-scanner-region';
 
   useEffect(() => {
-    if (open) {
+    // Simple check for desktop/laptop
+    const isDesktopDevice = !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    setIsDesktop(isDesktopDevice);
+
+    let html5QrCode = null;
+    let isCleaningUp = false;
+
+    async function startScanner() {
+      if (!open) return;
+      if (isDesktopDevice) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError('');
-      
+
+      // Wait for Dialog transition
+      await new Promise((resolve) => setTimeout(resolve, 350));
+
+      const element = document.getElementById(regionId);
+      if (!element) {
+        setLoading(false);
+        return;
+      }
+
       const config = { 
         fps: 10, 
         qrbox: { width: 250, height: 150 },
         aspectRatio: 1.0
       };
 
-      const html5QrCode = new Html5Qrcode(regionId);
-      scannerRef.current = html5QrCode;
+      try {
+        html5QrCode = new Html5Qrcode(regionId);
+        scannerRef.current = html5QrCode;
 
-      html5QrCode
-        .start(
+        await html5QrCode.start(
           { facingMode: 'environment' }, 
           config,
-          (decodedText) => {
-            // Success!
-            html5QrCode.stop().then(() => {
-              onScanSuccess(decodedText);
-              onClose();
-            });
-          },
-          () => {
-            // Failure is common (no barcode in frame) - just keep going
-          }
-        )
-        .then(() => {
-          setLoading(false);
-        })
-        .catch((err) => {
-          console.error('Error starting scanner:', err);
-          setError('Could not start camera. Please ensure camera permissions are granted.');
-          setLoading(false);
-        });
-    } else {
-      if (scannerRef.current && scannerRef.current.isScanning) {
-        scannerRef.current.stop().catch(console.error);
+          handleScan,
+          () => {}
+        );
+        
+        setLoading(false);
+      } catch (err) {
+        console.error('Error starting scanner:', err);
+        setError('Could not access camera. Please check permissions and device availability.');
+        setLoading(false);
       }
     }
 
+    async function handleScan(decodedText) {
+      if (isCleaningUp) return;
+      
+      try {
+        if (scannerRef.current && scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
+        onScanSuccess(decodedText);
+        onClose();
+      } catch (err) {
+        console.error('Error during scan success cleanup:', err);
+        onScanSuccess(decodedText);
+        onClose();
+      }
+    }
+
+    if (open) {
+      startScanner();
+    }
+
     return () => {
-      if (scannerRef.current && scannerRef.current.isScanning) {
-        scannerRef.current.stop().catch(console.error);
+      isCleaningUp = true;
+      if (scannerRef.current) {
+        if (scannerRef.current.isScanning) {
+          scannerRef.current.stop().catch(() => {}).finally(() => {
+            scannerRef.current = null;
+          });
+        } else {
+          scannerRef.current = null;
+        }
       }
     };
   }, [open, onClose, onScanSuccess]);
@@ -81,38 +119,66 @@ export default function BarcodeScannerDialog({ open, onClose, onScanSuccess }) {
         </Stack>
       </DialogTitle>
       <DialogContent>
-        <Box
-          id={regionId}
-          sx={{
-            width: '100%',
-            overflow: 'hidden',
-            borderRadius: 2,
-            bgcolor: 'black',
-            minHeight: 250,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative'
-          }}
-        >
-          {loading && (
-            <Stack spacing={2} alignItems="center" sx={{ color: 'white', position: 'absolute', zIndex: 1 }}>
-              <CircularProgress color="inherit" />
-              <Typography variant="body2">Starting Camera...</Typography>
-            </Stack>
-          )}
-          {error && (
-            <Box sx={{ p: 4, textAlign: 'center', color: 'error.main', position: 'absolute', zIndex: 1 }}>
-              <Typography variant="body2">{error}</Typography>
+        {isDesktop ? (
+          <Stack spacing={2} alignItems="center" sx={{ py: 4, textAlign: 'center' }}>
+            <Box
+              sx={{
+                width: 80,
+                height: 80,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: 'action.hover',
+                mb: 1
+              }}
+            >
+              <QrCodeScannerRoundedIcon sx={{ fontSize: 40, color: 'text.secondary' }} />
             </Box>
-          )}
-        </Box>
-        <Typography variant="caption" sx={{ mt: 2, display: 'block', textAlign: 'center', color: 'text.secondary' }}>
-          Point your camera at a product's barcode to automatically scan.
-        </Typography>
+            <Typography variant="subtitle1" fontWeight="bold">
+              Scanning Blocked
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Barcode scanning is optimized for mobile devices with rear cameras. 
+              Please use the manual input field to add barcodes on this device.
+            </Typography>
+          </Stack>
+        ) : (
+          <>
+            <Box
+              id={regionId}
+              sx={{
+                width: '100%',
+                overflow: 'hidden',
+                borderRadius: 2,
+                bgcolor: 'black',
+                minHeight: 250,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative'
+              }}
+            >
+              {loading && (
+                <Stack spacing={2} alignItems="center" sx={{ color: 'white', position: 'absolute', zIndex: 1 }}>
+                  <CircularProgress color="inherit" />
+                  <Typography variant="body2">Starting Camera...</Typography>
+                </Stack>
+              )}
+              {error && (
+                <Box sx={{ p: 4, textAlign: 'center', color: 'error.main', position: 'absolute', zIndex: 1 }}>
+                  <Typography variant="body2">{error}</Typography>
+                </Box>
+              )}
+            </Box>
+            <Typography variant="caption" sx={{ mt: 2, display: 'block', textAlign: 'center', color: 'text.secondary' }}>
+              Point your camera at a product's barcode to automatically scan.
+            </Typography>
+          </>
+        )}
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>Close</Button>
       </DialogActions>
     </Dialog>
   );
