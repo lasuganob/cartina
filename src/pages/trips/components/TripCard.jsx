@@ -1,55 +1,100 @@
-import { Box, Button, Card, CardContent, Stack, Typography } from '@mui/material';
+import { useState } from 'react';
+import { Box, Card, CardContent, Stack, Typography, IconButton, Menu, MenuItem, ListItemIcon, ListItemText } from '@mui/material';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import StatusChip from '../../../components/StatusChip';
 import { formatCurrency } from '../../../utils/formatCurrency';
 import { formatDate } from '../../../utils/formatDate';
-import { NavLink } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 export default function TripCard({ trip }) {
-  return (
-    <Card variant="outlined">
-      <CardContent>
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          justifyContent="space-between"
-          spacing={2}
-        >
-          <Box>
-            <Stack direction="row" spacing={1}>
-              <Typography variant="subtitle1">{trip.name}</Typography>
-              <StatusChip status={trip.status} />
-            </Stack>
-            <Typography variant="body2" color="text.secondary">
-              Planned for: {formatDate(trip.planned_for)}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Budget: {formatCurrency(trip.budget)}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Store: {trip.store?.name || 'Not assigned'}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Items: {trip.items.length}
-            </Typography>
-          </Box>
+  const navigate = useNavigate();
+  const [anchorEl, setAnchorEl] = useState(null);
+  const open = Boolean(anchorEl);
 
-          <Box>
-            <Button
-              variant="contained"
-              component={NavLink}
-              to={`/trips/${trip.id}`}
-              sx={{ textTransform: "none", mr: 1, backgroundColor: "#007bff"}}
-            >
-              View
-            </Button>
-            <Button
-              variant="contained"
-              component={NavLink}
-              sx={{ textTransform: "none", backgroundColor: "#dc3545"}}
-            >
-              Delete
-            </Button>
-          </Box>
-        </Stack>
+  const handleMenuClick = (e) => {
+    e.stopPropagation();
+    setAnchorEl(e.currentTarget);
+  };
+
+  const handleClose = (e) => {
+    e.stopPropagation();
+    setAnchorEl(null);
+  };
+
+  const handleEdit = (e) => {
+    e.stopPropagation();
+    setAnchorEl(null);
+    // Navigation for edit trip goes here if existing
+    // navigate(`/trips/${trip.id}/edit`);
+  };
+
+  const handleDelete = (e) => {
+    e.stopPropagation();
+    setAnchorEl(null);
+    // Add logic here to delete trip
+  };
+
+  return (
+    <Card 
+      variant="outlined"
+      onClick={() => navigate(`/trips/${trip.id}`)}
+      sx={{ 
+        position: 'relative',
+        cursor: 'pointer', 
+        '&:hover': { backgroundColor: 'action.hover' },
+        transition: 'background-color 0.2s',
+      }}
+    >
+      <Box 
+        sx={{ position: 'absolute', top: 8, right: 8, zIndex: 1 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <IconButton onClick={handleMenuClick} size="small">
+          <MoreVertIcon />
+        </IconButton>
+        <Menu
+          anchorEl={anchorEl}
+          open={open}
+          onClose={handleClose}
+          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        >
+          <MenuItem onClick={handleEdit}>
+            <ListItemIcon>
+              <EditIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Edit</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
+            <ListItemIcon>
+              <DeleteIcon fontSize="small" color="inherit" />
+            </ListItemIcon>
+            <ListItemText>Delete</ListItemText>
+          </MenuItem>
+        </Menu>
+      </Box>
+
+      <CardContent>
+        <Box sx={{ pr: 4 }}>
+          <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+            <Typography variant="subtitle1" fontWeight="bold" sx={{ mr: 1 }}>{trip.name}</Typography>
+            <StatusChip status={trip.status} />
+          </Stack>
+          <Typography variant="body2" color="text.secondary">
+            Planned for: {formatDate(trip.planned_for)}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Budget: {formatCurrency(trip.budget)}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Store: {trip.store?.name || 'Not assigned'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Items: {trip.items ? trip.items.length : 0}
+          </Typography>
+        </Box>
       </CardContent>
     </Card>
   );

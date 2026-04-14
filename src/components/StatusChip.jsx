@@ -4,7 +4,8 @@ const colorByStatus = {
   planned: 'default',
   in_progress: 'primary',
   completed: 'success',
-  cancelled: 'error'
+  cancelled: 'error',
+  archived: 'warning'
 };
 
 export default function StatusChip({ status }) {

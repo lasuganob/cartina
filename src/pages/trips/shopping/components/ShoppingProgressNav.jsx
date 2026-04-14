@@ -154,10 +154,10 @@ export default function ShoppingProgressNav({
                   onClick={handlePauseResume}
                   disabled={busy}
                   startIcon={
-                    trip.shopping_paused ? <PlayCircleFilledWhiteRoundedIcon /> : <PauseCircleRoundedIcon />
+                    isInProgress ? <PauseCircleRoundedIcon /> : <PlayCircleFilledWhiteRoundedIcon />
                   }
                 >
-                  {trip.shopping_paused ? 'Resume' : 'Pause'}
+                  {isInProgress ? 'Pause' : 'Resume'}
                 </Button>
               </Grid>
             </Grid>

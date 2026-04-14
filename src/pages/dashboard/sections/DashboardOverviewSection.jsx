@@ -1,4 +1,4 @@
-import { Alert, Button, Card, CardContent, Skeleton, Stack, Typography } from '@mui/material';
+import { Alert, Button, Card, CardActionArea, CardContent, Skeleton, Stack, Typography } from '@mui/material';
 import EmptyState from '../../../components/EmptyState';
 import StatusChip from '../../../components/StatusChip';
 import { formatCurrency } from '../../../utils/formatCurrency';
@@ -6,6 +6,8 @@ import { formatDate } from '../../../utils/formatDate';
 import { NavLink } from 'react-router-dom';
 
 export default function DashboardOverviewSection({ trips, loading, error }) {
+  const visibleTrips = trips.filter((trip) => trip.status !== 'archived');
+
   if (loading) {
     return (
       <Card sx={{ width: 500 }}>
@@ -36,10 +38,10 @@ export default function DashboardOverviewSection({ trips, loading, error }) {
     return <Alert severity="warning">Using local data only: {error}</Alert>;
   }
 
-  if (!trips.length) {
+  if (!visibleTrips.length) {
     return (
       <EmptyState
-        title="No trips yet"
+        title="No upcoming trips yet"
         description="Create your first grocery trip to start budgeting and syncing."
       />
     );
@@ -52,32 +54,28 @@ export default function DashboardOverviewSection({ trips, loading, error }) {
           Upcoming Trips
         </Typography>
         <Stack spacing={2} sx={{ mt: 1}}>
-          {trips.slice(0, 5).map((trip) => (
-            <Card
-              key={trip.id}
-              direction={{ xs: 'column', sm: 'row' }}
-              justifyContent="space-between"
-              spacing={1}
-              sx={{ p: 2}}
-            >
-              <Stack>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography variant="subtitle1">{trip.name}</Typography>
-                  <StatusChip status={trip.status} />
+          {visibleTrips.slice(0, 5).map((trip) => (
+            <Card key={trip.id} variant="outlined">
+              <CardActionArea component={NavLink} to={`/trips/${trip.id}`} sx={{ p: 2 }}>
+                <Stack>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Typography variant="subtitle1">{trip.name}</Typography>
+                    <StatusChip status={trip.status} />
+                  </Stack>
+                  <Typography variant="body2" color="text.secondary">
+                    {formatDate(trip.planned_for)} • Budget: {formatCurrency(trip.budget)}
+                  </Typography>
                 </Stack>
-                <Typography variant="body2" color="text.secondary">
-                  {formatDate(trip.planned_for)} • Budget: {formatCurrency(trip.budget)}
-                </Typography>
-              </Stack>
+              </CardActionArea>
             </Card>
           ))}
           <Button
-            variant="contained"
+            variant="outlined"
             component={NavLink}
             to="/trips"
             sx={{ mt: 2, width: '100%' }}
           >
-            + Create New Trip
+            View All Trips
           </Button>
         </Stack>
       </CardContent>

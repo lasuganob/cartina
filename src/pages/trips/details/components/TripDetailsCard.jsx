@@ -63,22 +63,24 @@ export default function TripDetailsCard({ trip, saving, onSave }) {
       <CardContent>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
           <Typography variant="h6">Trip Details</Typography>
-          <Stack direction="row" spacing={1}>
-            {isEditing ? (
-              <>
-                <Button variant="outlined" onClick={handleCancel} disabled={saving}>
-                  Cancel
+          {trip.status === "completed" || trip.status === "archived" ? null : (
+            <Stack direction="row" spacing={1}>
+              {isEditing ? (
+                <>
+                  <Button variant="outlined" onClick={handleCancel} disabled={saving}>
+                    Cancel
+                  </Button>
+                  <Button variant="contained" onClick={handleSave} disabled={saving}>
+                    {saving ? 'Saving...' : 'Save'}
+                  </Button>
+                </>
+              ) : (
+                <Button variant="contained" onClick={() => setIsEditing(true)}>
+                  Edit
                 </Button>
-                <Button variant="contained" onClick={handleSave} disabled={saving}>
-                  {saving ? 'Saving...' : 'Save'}
-                </Button>
-              </>
-            ) : (
-              <Button variant="contained" onClick={() => setIsEditing(true)}>
-                Edit
-              </Button>
-            )}
-          </Stack>
+              )}
+            </Stack>
+          )}
         </Stack>
 
         <Grid container spacing={2}>

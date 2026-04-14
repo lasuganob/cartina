@@ -1,10 +1,12 @@
-import { Button, Card, CardContent, Grid, Stack, TextField, Typography } from '@mui/material';
+import { Button, Card, CardContent, Grid, IconButton, InputAdornment, Stack, TextField, Typography } from '@mui/material';
+import QrCodeScannerRoundedIcon from '@mui/icons-material/QrCodeScannerRounded';
 
 export default function UnplannedItemForm({
   unplannedDraft,
   setUnplannedDraft,
   handleAddUnplannedItem,
-  setShowUnplannedForm
+  setShowUnplannedForm,
+  onScanClick
 }) {
   return (
     <Card variant="outlined" sx={{ borderStyle: 'dashed' }}>
@@ -12,6 +14,29 @@ export default function UnplannedItemForm({
         <Stack spacing={1.5}>
           <Typography variant="subtitle1">New Unplanned Item</Typography>
           <Grid container spacing={1.5}>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                label="Barcode"
+                value={unplannedDraft.barcode || ''}
+                placeholder="Scan or enter manually"
+                onChange={(event) =>
+                  setUnplannedDraft((current) => ({
+                    ...current,
+                    barcode: event.target.value
+                  }))
+                }
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={onScanClick} edge="end" color="primary">
+                        <QrCodeScannerRoundedIcon />
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                }}
+              />
+            </Grid>
             <Grid size={{ xs: 12 }}>
               <TextField
                 fullWidth
@@ -68,7 +93,7 @@ export default function UnplannedItemForm({
               variant="text"
               onClick={() => {
                 setShowUnplannedForm(false);
-                setUnplannedDraft({ item_name: '', quantity: 1, actual_price: '' });
+                setUnplannedDraft({ item_name: '', quantity: 1, actual_price: '', barcode: '' });
               }}
             >
               Cancel

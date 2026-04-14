@@ -16,7 +16,10 @@ function normalizeTrip(trip) {
     store_id: trip.store_id || '',
     note: trip.note || '',
     created_at: trip.created_at || new Date().toISOString(),
-    completed_at: trip.completed_at || ''
+    completed_at: trip.completed_at || '',
+    started_at: trip.started_at || '',
+    archived_at: trip.archived_at || '',
+    elapsed_ms: Math.max(0, Number(trip.elapsed_ms || 0))
   };
 }
 
@@ -25,6 +28,7 @@ function normalizeChecklistItem(item) {
     ...item,
     item_name: item.item_name || '',
     inventory_item_id: item.inventory_item_id || '',
+    barcode: item.barcode || '',
     quantity: Math.max(1, Number(item.quantity || 1)),
     planned_price:
       item.planned_price === '' || item.planned_price === null || item.planned_price === undefined
@@ -207,6 +211,26 @@ export function useTrips() {
     await queueMutation('trips', 'create', trip);
     await processQueueIfOnline();
     showSnackbar('Trip saved locally and queued for sync.', 'success');
+
+    const persistedTrip = await db.trips.get(trip.id);
+    if (persistedTrip) {
+      return persistedTrip;
+    }
+
+    const syncedTrip =
+      (await db.trips.where('created_at').equals(trip.created_at).first()) ||
+      (await db.trips
+        .where('planned_for')
+        .equals(trip.planned_for)
+        .filter(
+          (item) =>
+            item.name === trip.name &&
+            String(item.store_id || '') === String(trip.store_id || '') &&
+            String(item.note || '') === String(trip.note || '')
+        )
+        .first());
+
+    return syncedTrip || trip;
   }
 
   async function updateTrip(id, values) {
@@ -277,7 +301,7 @@ export function useTrips() {
   }
 
   const stats = useMemo(() => {
-    const items = tripsData || [];
+    const items = (tripsData || []).filter((trip) => trip.status !== 'archived');
     const plannedTrips = items.filter((trip) => trip.status === 'planned').length;
     const completedTrips = items.filter((trip) => trip.status === 'completed').length;
     const totalBudget = items.reduce((sum, trip) => sum + trip.budget, 0);

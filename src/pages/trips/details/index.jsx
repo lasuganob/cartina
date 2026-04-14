@@ -1,9 +1,21 @@
 import { useState } from 'react';
-import { Alert, Box, Button, Card, CardContent, Grid, Stack, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Grid,
+  Stack,
+  Typography
+} from '@mui/material';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../../../components/PageHeader';
 import StatusChip from '../../../components/StatusChip';
-import { useAppContext } from '../../../context/AppContext';
 import { useTrips } from '../../../hooks/useTrips';
 import BudgetSnapshotCard from './components/BudgetSnapshotCard';
 import BuildChecklistDialog from './components/BuildChecklistDialog';
@@ -15,10 +27,10 @@ import TripDetailsCard from './components/TripDetailsCard';
 export default function TripDetailsPage() {
   const { tripId } = useParams();
   const navigate = useNavigate();
-  const { showSnackbar } = useAppContext();
   const { trips, loading, error, updateTrip, replaceTripChecklist } = useTrips();
   const [busy, setBusy] = useState(false);
   const [checklistDialogOpen, setChecklistDialogOpen] = useState(false);
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
 
   const trip = trips.find((item) => String(item.id) === String(tripId));
 
@@ -47,8 +59,17 @@ export default function TripDetailsPage() {
     setChecklistDialogOpen(true);
   }
 
-  function handleArchiveTrip() {
-    showSnackbar('Archive flow is not implemented yet. Use cancelled status if needed.', 'info');
+  async function handleArchiveTrip() {
+    setBusy(true);
+    try {
+      await updateTrip(trip.id, {
+        status: 'archived',
+        archived_at: new Date().toISOString()
+      });
+      setArchiveDialogOpen(false);
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (loading) {
@@ -141,8 +162,7 @@ export default function TripDetailsPage() {
         busy={busy}
         onStartTrip={() => navigate(`/trips/${trip.id}/shopping`)}
         onBuildChecklist={handleBuildChecklist}
-        onMarkComplete={() => handleStatusChange('completed')}
-        onArchiveTrip={handleArchiveTrip}
+        onArchiveTrip={() => setArchiveDialogOpen(true)}
       />
       <BuildChecklistDialog
         open={checklistDialogOpen}
@@ -159,6 +179,22 @@ export default function TripDetailsPage() {
           }
         }}
       />
+      <Dialog open={archiveDialogOpen} onClose={() => !busy && setArchiveDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Archive Trip</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary">
+            Archived trips stay viewable but are excluded from dashboard totals and cannot be restored.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setArchiveDialogOpen(false)} disabled={busy}>
+            Cancel
+          </Button>
+          <Button onClick={handleArchiveTrip} color="error" variant="contained" disabled={busy}>
+            Archive
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

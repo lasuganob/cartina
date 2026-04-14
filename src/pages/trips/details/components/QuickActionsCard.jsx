@@ -3,13 +3,13 @@ import PlayCircleFilledWhiteRoundedIcon from '@mui/icons-material/PlayCircleFill
 import BorderColorRoundedIcon from '@mui/icons-material/BorderColorRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import ArchiveRoundedIcon from '@mui/icons-material/ArchiveRounded';
+import PauseCircleFilledRoundedIcon from '@mui/icons-material/PauseCircleFilledRounded';
 
 export default function QuickActionsCard({
   trip,
   busy,
   onStartTrip,
   onBuildChecklist,
-  onMarkComplete,
   onArchiveTrip
 }) {
   return (
@@ -22,58 +22,43 @@ export default function QuickActionsCard({
         p: 2,
         mx: '-24px',
         px: '24px',
-        mb: '-32px',
-        pb: '32px',
+        mb: '-24px',
+        pb: '24px',
         bgcolor: 'white',
         borderTop: '1px solid #e0e0e0',
       }}
     >
-      <Typography variant="h6" sx={{ textTransform: "uppercase", fontSize: "14px", letterSpacing: "1px", mb: 1 }}>
-        Quick Actions
-      </Typography>
       <Grid spacing={1.5} container>
-        <Grid size={{ xs: 6, md: 3 }}>
+        <Grid size={{ xs: 4 }}>
           <Button
             fullWidth
             variant="outlined"
             onClick={onStartTrip}
-            disabled={busy || trip.status === 'in_progress' || trip.status === 'completed'}
-            startIcon={<PlayCircleFilledWhiteRoundedIcon />}
+            disabled={busy || trip.status === 'completed' || trip.status === 'archived'}
+            startIcon={trip.status === 'in_progress' ? <PauseCircleFilledRoundedIcon /> : <PlayCircleFilledWhiteRoundedIcon />}
             sx={{ fontSize: "12px" }}
           >
-            Start Trip
+            {trip.status === 'in_progress' ? 'Resume Trip' : 'Start Trip'}
           </Button>
         </Grid>
-        <Grid size={{ xs: 6, md: 3 }}>
+        <Grid size={{ xs: 4 }}>
           <Button
             fullWidth
             variant="outlined"
             onClick={onBuildChecklist}
-            disabled={busy}
+            disabled={busy || trip.status === 'completed' || trip.status === 'archived'}
             startIcon={<BorderColorRoundedIcon />}
             sx={{ fontSize: "12px" }}
           >
             Checklist
           </Button>
         </Grid>
-        <Grid size={{ xs: 6, md: 3 }}>
-          <Button
-            fullWidth
-            variant="outlined"
-            onClick={onMarkComplete}
-            disabled={busy || trip.status === 'completed'}
-            startIcon={<CheckCircleRoundedIcon />}
-            sx={{ fontSize: "12px" }}
-          >
-            Mark Complete
-          </Button>
-        </Grid>
-        <Grid size={{ xs: 6, md: 3 }}>
+        <Grid size={{ xs: 4 }}>
           <Button
             fullWidth
             variant="outlined"
             onClick={onArchiveTrip}
-            disabled={busy || trip.status === 'cancelled'}
+            disabled={busy || trip.status === 'archived'}
             startIcon={<ArchiveRoundedIcon />}
             sx={{ fontSize: "12px" }}
           >

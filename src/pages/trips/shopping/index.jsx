@@ -8,16 +8,20 @@ import {
   Chip,
   Divider,
   Grid,
+  IconButton,
   LinearProgress,
   Stack,
   Typography
 } from '@mui/material';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import QrCodeScannerRoundedIcon from '@mui/icons-material/QrCodeScannerRounded';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../../../components/PageHeader';
 import StatusChip from '../../../components/StatusChip';
+import BarcodeScannerDialog from '../../../components/BarcodeScannerDialog';
 import { useTrips } from '../../../hooks/useTrips';
-import { clearQueuedChecklistReplaces } from '../../../lib/db';
+import { clearQueuedChecklistReplaces, db } from '../../../lib/db';
+import { useBarcodeLookup } from '../../../hooks/useBarcodeLookup';
 
 import ShoppingItemCard from './components/ShoppingItemCard';
 import TripContextCard from './components/TripContextCard';
@@ -28,6 +32,10 @@ function getShoppingDraftKey(tripId) {
   return `trip-shopping-draft:${tripId}`;
 }
 
+function getShoppingSessionKey(tripId) {
+  return `trip-shopping-session:${tripId}`;
+}
+
 function normalizeDraftItem(item, index) {
   return {
     id: item.id || crypto.randomUUID(),
@@ -35,6 +43,7 @@ function normalizeDraftItem(item, index) {
     item_name: item.item_name || item.inventory_item?.name || '',
     inventory_item_id: item.inventory_item_id || '',
     inventory_item: item.inventory_item || null,
+    barcode: item.barcode || item.inventory_item?.barcode || '',
     quantity: Math.max(1, Number(item.quantity || 1)),
     planned_price:
       item.planned_price === '' || item.planned_price === null || item.planned_price === undefined
@@ -62,25 +71,61 @@ function buildPersistedItems(items, tripId) {
   }));
 }
 
+function getCurrentElapsedMs(sessionState, now = Date.now()) {
+  if (!sessionState) {
+    return 0;
+  }
+
+  if (!sessionState.isRunning || !sessionState.lastStartedAt) {
+    return Math.max(0, Number(sessionState.elapsedMs || 0));
+  }
+
+  return Math.max(0, Number(sessionState.elapsedMs || 0) + (now - sessionState.lastStartedAt));
+}
+
 export default function TripShoppingPage() {
   const { tripId } = useParams();
   const navigate = useNavigate();
   const { trips, loading, error, updateTrip, replaceTripChecklist } = useTrips();
   const [busy, setBusy] = useState(false);
   const [draftItems, setDraftItems] = useState([]);
-  const [unplannedDraft, setUnplannedDraft] = useState({ item_name: '', quantity: 1, actual_price: '' });
+  const [unplannedDraft, setUnplannedDraft] = useState({ item_name: '', quantity: 1, actual_price: '', barcode: '' });
   const [showUnplannedForm, setShowUnplannedForm] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [actionsExpanded, setActionsExpanded] = useState(true);
   const [tick, setTick] = useState(Date.now());
-  const initializedRef = useRef(false);
+  const [sessionState, setSessionState] = useState({
+    elapsedMs: 0,
+    isRunning: true,
+    lastStartedAt: Date.now(),
+    startedAt: ''
+  });
+  const { lookup } = useBarcodeLookup();
+  const persistRef = useRef({
+    draftItems: [],
+    sessionState: null,
+    tripId: '',
+    startedAt: ''
+  });
+  const hasPersistedOnExitRef = useRef(false);
+  const isCompletingRef = useRef(false);
+  const initializedTripIdRef = useRef('');
+  const updateTripRef = useRef(updateTrip);
+  const replaceTripChecklistRef = useRef(replaceTripChecklist);
 
   const trip = trips.find((item) => String(item.id) === String(tripId));
 
   useEffect(() => {
-    if (!trip) {
+    updateTripRef.current = updateTrip;
+    replaceTripChecklistRef.current = replaceTripChecklist;
+  }, [replaceTripChecklist, updateTrip]);
+
+  useEffect(() => {
+    if (!trip || initializedTripIdRef.current === String(trip.id)) {
       return;
     }
 
+    initializedTripIdRef.current = String(trip.id);
     const storedDraft = window.localStorage.getItem(getShoppingDraftKey(trip.id));
     const draftSource = storedDraft ? JSON.parse(storedDraft) : trip.items;
     const normalizedDraftItems = draftSource
@@ -92,29 +137,26 @@ export default function TripShoppingPage() {
   }, [trip]);
 
   useEffect(() => {
-    if (!trip || initializedRef.current) {
+    if (!trip || initializedTripIdRef.current !== String(trip.id)) {
       return;
     }
 
-    initializedRef.current = true;
+    hasPersistedOnExitRef.current = false;
+    const nowIso = new Date().toISOString();
+    const storedSession = window.localStorage.getItem(getShoppingSessionKey(trip.id));
+    const parsedSession = storedSession ? JSON.parse(storedSession) : null;
 
-    if (trip.status !== 'in_progress') {
-      void updateTrip(trip.id, {
-        status: 'in_progress',
-        started_at: trip.started_at || new Date().toISOString(),
-        shopping_paused: false,
-        shopping_paused_at: '',
-        paused_duration_ms: Number(trip.paused_duration_ms || 0)
-      });
-    } else if (!trip.started_at) {
-      void updateTrip(trip.id, { started_at: new Date().toISOString() });
-    }
-
+    setSessionState({
+      elapsedMs: Math.max(0, Number(parsedSession?.elapsedMs ?? trip.elapsed_ms ?? 0)),
+      isRunning: true,
+      lastStartedAt: Date.now(),
+      startedAt: parsedSession?.startedAt || trip.started_at || nowIso
+    });
     void clearQueuedChecklistReplaces(trip.id);
-  }, [trip, updateTrip]);
+  }, [trip]);
 
   useEffect(() => {
-    if (!trip?.started_at || trip.shopping_paused) {
+    if (!trip || !sessionState.isRunning) {
       return undefined;
     }
 
@@ -123,7 +165,7 @@ export default function TripShoppingPage() {
     }, 1000);
 
     return () => window.clearInterval(intervalId);
-  }, [trip?.started_at, trip?.shopping_paused]);
+  }, [sessionState.isRunning, trip]);
 
   useEffect(() => {
     if (!trip) {
@@ -137,6 +179,27 @@ export default function TripShoppingPage() {
 
     return undefined;
   }, [draftItems, trip]);
+
+  useEffect(() => {
+    if (!trip) {
+      return;
+    }
+
+    persistRef.current = {
+      draftItems,
+      sessionState,
+      tripId: trip.id,
+      startedAt: sessionState.startedAt || trip.started_at || ''
+    };
+
+    window.localStorage.setItem(
+      getShoppingSessionKey(trip.id),
+      JSON.stringify({
+        elapsedMs: getCurrentElapsedMs(sessionState),
+        startedAt: sessionState.startedAt
+      })
+    );
+  }, [draftItems, sessionState, trip]);
 
   const metrics = useMemo(() => {
     const checkedCount = draftItems.filter((item) => item.is_purchased).length;
@@ -155,17 +218,53 @@ export default function TripShoppingPage() {
     return { checkedCount, unplannedCount, subtotal, plannedTotal, variance, progress };
   }, [draftItems]);
 
-  const elapsedMs = useMemo(() => {
-    if (!trip?.started_at) {
-      return 0;
+  const elapsedMs = useMemo(
+    () => getCurrentElapsedMs(sessionState, tick),
+    [sessionState, tick]
+  );
+
+  useEffect(() => {
+    function persistOnExit() {
+      if (hasPersistedOnExitRef.current || isCompletingRef.current) {
+        return;
+      }
+
+      hasPersistedOnExitRef.current = true;
+      const current = persistRef.current;
+
+      if (!current.tripId) {
+        return;
+      }
+
+      const nextElapsedMs = getCurrentElapsedMs(current.sessionState);
+
+      window.localStorage.setItem(
+        getShoppingSessionKey(current.tripId),
+        JSON.stringify({
+          elapsedMs: nextElapsedMs,
+          startedAt: current.startedAt || new Date().toISOString()
+        })
+      );
+
+      void replaceTripChecklistRef.current(current.tripId, buildPersistedItems(current.draftItems, current.tripId), {
+        sync: true,
+        notify: false
+      });
+      void updateTripRef.current(current.tripId, {
+        status: 'in_progress',
+        started_at: current.startedAt || new Date().toISOString(),
+        elapsed_ms: nextElapsedMs,
+        completed_at: ''
+      });
     }
 
-    const startedAt = new Date(trip.started_at).getTime();
-    const pausedDuration = Number(trip.paused_duration_ms || 0);
-    const pausedAt = trip.shopping_paused_at ? new Date(trip.shopping_paused_at).getTime() : null;
-    const endPoint = trip.shopping_paused && pausedAt ? pausedAt : tick;
-    return Math.max(0, endPoint - startedAt - pausedDuration);
-  }, [tick, trip]);
+    window.addEventListener('pagehide', persistOnExit);
+
+    return () => {
+      window.removeEventListener('pagehide', persistOnExit);
+      persistOnExit();
+    };
+  }, []);
 
   async function handleUpdateItem(index, changes) {
     setDraftItems((current) =>
@@ -180,6 +279,7 @@ export default function TripShoppingPage() {
         trip_id: trip.id,
         item_name: unplannedDraft.item_name.trim(),
         quantity: unplannedDraft.quantity,
+        barcode: unplannedDraft.barcode || '',
         planned_price: '',
         actual_price: unplannedDraft.actual_price,
         is_purchased: unplannedDraft.actual_price !== '',
@@ -191,37 +291,52 @@ export default function TripShoppingPage() {
     );
 
     setDraftItems((current) => [newItem, ...current]);
-    setUnplannedDraft({ item_name: '', quantity: 1, actual_price: '' });
+    setUnplannedDraft({ item_name: '', quantity: 1, actual_price: '', barcode: '' });
     setShowUnplannedForm(false);
   }
 
-  async function handlePauseResume() {
-    if (!trip) {
+  async function handleScanSuccess(barcode) {
+    // 1. Search in current draft items for a match
+    const existingIndex = draftItems.findIndex((item) => item.barcode === barcode);
+    if (existingIndex !== -1) {
+      // Auto-check the item
+      handleUpdateItem(existingIndex, { is_purchased: true });
       return;
     }
 
+    // 2. Not in checklist, look up in own data (local inventory)
     setBusy(true);
     try {
-      if (trip.shopping_paused) {
-        const resumedPausedDuration =
-          Number(trip.paused_duration_ms || 0) +
-          (Date.now() - new Date(trip.shopping_paused_at).getTime());
-
-        await updateTrip(trip.id, {
-          shopping_paused: false,
-          shopping_paused_at: '',
-          paused_duration_ms: resumedPausedDuration
-        });
-        return undefined;
-      }
-
-      await updateTrip(trip.id, {
-        shopping_paused: true,
-        shopping_paused_at: new Date().toISOString()
+      const productInfo = await lookup(barcode);
+      setUnplannedDraft({
+        item_name: productInfo?.name || '',
+        quantity: 1,
+        actual_price: productInfo?.price ? String(productInfo.price) : '',
+        barcode: barcode
       });
+      setShowUnplannedForm(true);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handlePauseResume() {
+    setSessionState((current) => {
+      if (current.isRunning) {
+        return {
+          ...current,
+          elapsedMs: getCurrentElapsedMs(current),
+          isRunning: false,
+          lastStartedAt: null
+        };
+      }
+
+      return {
+        ...current,
+        isRunning: true,
+        lastStartedAt: Date.now()
+      };
+    });
   }
 
   async function handleCheckout() {
@@ -231,19 +346,23 @@ export default function TripShoppingPage() {
 
     setBusy(true);
     try {
+      isCompletingRef.current = true;
+      hasPersistedOnExitRef.current = true;
       await replaceTripChecklist(trip.id, buildPersistedItems(draftItems, trip.id), {
         sync: true,
         notify: true
       });
       window.localStorage.removeItem(getShoppingDraftKey(trip.id));
+      window.localStorage.removeItem(getShoppingSessionKey(trip.id));
       await updateTrip(trip.id, {
         status: 'completed',
+        started_at: sessionState.startedAt || trip.started_at || new Date().toISOString(),
+        elapsed_ms: elapsedMs,
         completed_at: new Date().toISOString(),
-        shopping_paused: false,
-        shopping_paused_at: ''
       });
       navigate(`/trips/${trip.id}`);
     } finally {
+      isCompletingRef.current = false;
       setBusy(false);
     }
   }
@@ -314,7 +433,7 @@ export default function TripShoppingPage() {
                     <Chip label={`${draftItems.length} item${draftItems.length === 1 ? '' : 's'}`} variant="outlined" />
                   </Stack>
 
-                  <Box>
+                  <Stack direction="row" spacing={1.5}>
                     <Button
                       variant={showUnplannedForm ? 'outlined' : 'contained'}
                       startIcon={<AddRoundedIcon />}
@@ -322,7 +441,15 @@ export default function TripShoppingPage() {
                     >
                       Add Unplanned Item
                     </Button>
-                  </Box>
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      startIcon={<QrCodeScannerRoundedIcon />}
+                      onClick={() => setScannerOpen(true)}
+                    >
+                      Scan Barcode
+                    </Button>
+                  </Stack>
 
                   {showUnplannedForm ? (
                     <UnplannedItemForm
@@ -330,6 +457,7 @@ export default function TripShoppingPage() {
                       setUnplannedDraft={setUnplannedDraft}
                       handleAddUnplannedItem={handleAddUnplannedItem}
                       setShowUnplannedForm={setShowUnplannedForm}
+                      onScanClick={() => setScannerOpen(true)}
                     />
                   ) : null}
 
@@ -372,7 +500,7 @@ export default function TripShoppingPage() {
       <ShoppingProgressNav
         trip={trip}
         metrics={metrics}
-        isInProgress={!trip.shopping_paused}
+        isInProgress={sessionState.isRunning}
         actionsExpanded={actionsExpanded}
         setActionsExpanded={setActionsExpanded}
         busy={busy}
@@ -380,6 +508,12 @@ export default function TripShoppingPage() {
         elapsedMs={elapsedMs}
         handleCheckout={handleCheckout}
         handlePauseResume={handlePauseResume}
+      />
+
+      <BarcodeScannerDialog 
+        open={scannerOpen} 
+        onClose={() => setScannerOpen(false)} 
+        onScanSuccess={handleScanSuccess}
       />
     </>
   );

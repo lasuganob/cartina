@@ -6,6 +6,21 @@ const SHEET_NAMES = {
   categories: "categories",
 };
 
+const TRIP_HEADERS = [
+  "id",
+  "name",
+  "planned_for",
+  "budget",
+  "status",
+  "store_id",
+  "note",
+  "created_at",
+  "started_at",
+  "elapsed_ms",
+  "completed_at",
+  "archived_at",
+];
+
 function doGet(e) {
   try {
     const path = getPath_(e);
@@ -60,17 +75,7 @@ function doPost(e) {
 }
 
 function getTrips_() {
-  const sheet = getOrCreateSheet_(SHEET_NAMES.trips, [
-    "id",
-    "name",
-    "planned_for",
-    "budget",
-    "status",
-    "store_id",
-    "note",
-    "created_at",
-    "completed_at",
-  ]);
+  const sheet = getOrCreateSheet_(SHEET_NAMES.trips, TRIP_HEADERS);
   const values = sheet.getDataRange().getValues();
 
   if (values.length === 1) {
@@ -88,17 +93,7 @@ function getTrips_() {
 }
 
 function createTrip_(payload) {
-  const headers = [
-    "id",
-    "name",
-    "planned_for",
-    "budget",
-    "status",
-    "store_id",
-    "note",
-    "created_at",
-    "completed_at",
-  ];
+  const headers = TRIP_HEADERS;
   const sheet = getOrCreateSheet_(SHEET_NAMES.trips, headers);
 
   const budget = Number(payload.budget || 0);
@@ -117,7 +112,10 @@ function createTrip_(payload) {
     store_id: payload.store_id || "",
     note: payload.note || "",
     created_at: payload.created_at || new Date().toISOString(),
+    started_at: payload.started_at || "",
+    elapsed_ms: Math.max(0, Number(payload.elapsed_ms || 0)),
     completed_at: payload.completed_at || "",
+    archived_at: payload.archived_at || "",
   };
 
   sheet.appendRow([
@@ -129,7 +127,10 @@ function createTrip_(payload) {
     trip.store_id,
     trip.note,
     trip.created_at,
+    trip.started_at,
+    trip.elapsed_ms,
     trip.completed_at,
+    trip.archived_at,
   ]);
 
   return trip;
@@ -149,7 +150,10 @@ function updateTrip_(payload) {
     "store_id",
     "note",
     "created_at",
+    "started_at",
+    "elapsed_ms",
     "completed_at",
+    "archived_at",
   ]);
   const values = sheet.getDataRange().getValues();
 
@@ -171,7 +175,17 @@ function updateTrip_(payload) {
       const updatedTrip = {
         ...existingTrip,
         ...payload,
-        budget: Number(payload.budget != null ? payload.budget : existingTrip.budget || 0),
+        budget: Number(
+          payload.budget != null ? payload.budget : existingTrip.budget || 0,
+        ),
+        elapsed_ms: Math.max(
+          0,
+          Number(
+            payload.elapsed_ms != null
+              ? payload.elapsed_ms
+              : existingTrip.elapsed_ms || 0,
+          ),
+        ),
         note: payload.note != null ? payload.note : existingTrip.note || "",
       };
 
@@ -201,6 +215,7 @@ function getTripChecklist_() {
     "actual_price",
     "is_purchased",
     "is_unplanned",
+    "barcode",
     "sort_order",
     "created_at",
   ]);
@@ -222,6 +237,7 @@ function replaceTripChecklist_(payload) {
     "actual_price",
     "is_purchased",
     "is_unplanned",
+    "barcode",
     "sort_order",
     "created_at",
   ];
@@ -264,6 +280,7 @@ function replaceTripChecklist_(payload) {
           : Number(item.actual_price),
       is_purchased: item.is_purchased === true || item.is_purchased === "true",
       is_unplanned: item.is_unplanned === true || item.is_unplanned === "true",
+      barcode: item.barcode || "",
       sort_order: Number(item.sort_order != null ? item.sort_order : index),
       created_at: item.created_at || new Date().toISOString(),
     };
@@ -280,6 +297,7 @@ function replaceTripChecklist_(payload) {
       item.actual_price,
       item.is_purchased,
       item.is_unplanned,
+      item.barcode,
       item.sort_order,
       item.created_at,
     ];
@@ -298,6 +316,7 @@ function getInventoryItems_() {
     "name",
     "category_id",
     "usual_price",
+    "barcode",
     "created_at",
   ]);
 }
@@ -324,9 +343,28 @@ function getOrCreateSheet_(name, headers) {
 
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(headers);
+  } else if (headers && headers.length) {
+    ensureSheetHeaders_(sheet, headers);
   }
 
   return sheet;
+}
+
+function ensureSheetHeaders_(sheet, headers) {
+  var existingHeaders = sheet
+    .getRange(1, 1, 1, sheet.getLastColumn())
+    .getValues()[0];
+  var missingHeaders = headers.filter(function (header) {
+    return existingHeaders.indexOf(header) === -1;
+  });
+
+  if (!missingHeaders.length) {
+    return;
+  }
+
+  sheet
+    .getRange(1, existingHeaders.length + 1, 1, missingHeaders.length)
+    .setValues([missingHeaders]);
 }
 
 function getRows_(name, headers) {
