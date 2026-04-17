@@ -15,17 +15,23 @@ export default function QuickActionsCard({
   return (
     <Box
       sx={{ 
-        position: 'sticky', 
-        bottom: 0, 
-        zIndex: 100,
-        mt: 3,
-        p: 2,
-        mx: '-24px',
-        px: '24px',
-        mb: '-24px',
-        pb: '24px',
-        bgcolor: 'white',
-        borderTop: '1px solid #e0e0e0',
+        position: { xs: 'fixed', md: 'sticky' },
+        bottom: { xs: 'calc(64px + env(safe-area-inset-bottom))', md: 0 },
+        left: { xs: 0, md: 'auto' },
+        right: { xs: 0, md: 'auto' },
+        zIndex: { xs: 1100, md: 100 },
+        mt: { xs: 0, md: 3 },
+        mx: { xs: 0, md: '-24px' },
+        mb: { xs: 0, md: '-32px' },
+        px: { xs: 2.5, md: '24px' },
+        py: 2,
+        bgcolor: 'background.paper',
+        borderTop: '1px solid',
+        borderColor: 'divider',
+        boxShadow: {
+            xs: '0 -8px 24px rgba(0, 0, 0, 0.12)',
+            md: '0 -8px 24px rgba(15, 23, 42, 0.08)'
+        }
       }}
     >
       <Grid spacing={1.5} container>

@@ -226,6 +226,42 @@ export async function processQueue() {
           await apiClient.deleteInventoryItem(item.payload);
         }
 
+        // Stores
+        if (item.entity === 'stores' && item.action === 'create') {
+          const response = await apiClient.createStore(item.payload);
+          if (response.item?.id && String(response.item.id) !== String(item.payload.id)) {
+             await db.transaction('rw', db.stores, db.trips, async () => {
+               await db.stores.delete(item.payload.id);
+               await db.stores.put(response.item);
+               await db.trips.where('store_id').equals(item.payload.id).modify({ store_id: response.item.id });
+             });
+          }
+        }
+        if (item.entity === 'stores' && item.action === 'update') {
+          await apiClient.updateStore(item.payload);
+        }
+        if (item.entity === 'stores' && item.action === 'delete') {
+          await apiClient.deleteStore(item.payload);
+        }
+
+        // Categories
+        if (item.entity === 'categories' && item.action === 'create') {
+          const response = await apiClient.createCategory(item.payload);
+          if (response.item?.id && String(response.item.id) !== String(item.payload.id)) {
+            await db.transaction('rw', db.categories, db.inventoryItems, async () => {
+              await db.categories.delete(item.payload.id);
+              await db.categories.put(response.item);
+              await db.inventoryItems.where('category_id').equals(item.payload.id).modify({ category_id: response.item.id });
+            });
+          }
+        }
+        if (item.entity === 'categories' && item.action === 'update') {
+          await apiClient.updateCategory(item.payload);
+        }
+        if (item.entity === 'categories' && item.action === 'delete') {
+          await apiClient.deleteCategory(item.payload);
+        }
+
         await db.syncQueue.update(item.id, { status: 'synced' });
       } catch (error) {
         await db.syncQueue.update(item.id, { status: 'failed', error: error.message });

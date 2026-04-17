@@ -97,8 +97,8 @@ export default function TripShoppingPage() {
   const [tick, setTick] = useState(Date.now());
   const [sessionState, setSessionState] = useState({
     elapsedMs: 0,
-    isRunning: true,
-    lastStartedAt: Date.now(),
+    isRunning: false, // Default to false until restored
+    lastStartedAt: null,
     startedAt: ''
   });
   const { lookup } = useBarcodeLookup();
@@ -150,8 +150,8 @@ export default function TripShoppingPage() {
 
     setSessionState({
       elapsedMs: Math.max(0, Number(parsedSession?.elapsedMs ?? trip.elapsed_ms ?? 0)),
-      isRunning: true,
-      lastStartedAt: Date.now(),
+      isRunning: parsedSession ? !!parsedSession.isRunning : true,
+      lastStartedAt: (parsedSession?.isRunning ?? true) ? Date.now() : null,
       startedAt: parsedSession?.startedAt || trip.started_at || nowIso
     });
     void clearQueuedChecklistReplaces(trip.id);
@@ -198,6 +198,7 @@ export default function TripShoppingPage() {
       getShoppingSessionKey(trip.id),
       JSON.stringify({
         elapsedMs: getCurrentElapsedMs(sessionState),
+        isRunning: sessionState.isRunning,
         startedAt: sessionState.startedAt
       })
     );
@@ -244,6 +245,7 @@ export default function TripShoppingPage() {
         getShoppingSessionKey(current.tripId),
         JSON.stringify({
           elapsedMs: nextElapsedMs,
+          isRunning: current.sessionState.isRunning,
           startedAt: current.startedAt || new Date().toISOString()
         })
       );

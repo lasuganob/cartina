@@ -62,7 +62,7 @@ export default function TripDetailsCard({ trip, saving, onSave }) {
     <Card>
       <CardContent>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-          <Typography variant="h6">Trip Details</Typography>
+          <Typography variant="body1" fontWeight={700}>Trip Details</Typography>
           {trip.status === "completed" || trip.status === "archived" ? null : (
             <Stack direction="row" spacing={1}>
               {isEditing ? (

@@ -52,20 +52,30 @@ function normalizeStore(store) {
   };
 }
 
-async function reapplyPendingInventoryMutations() {
+async function reapplyPendingMutations() {
   const queueItems = await db.syncQueue.toArray();
-  const inventoryMutations = queueItems.filter(
-    (item) => item.entity === 'inventoryItems' && item.status !== 'synced'
-  );
+  const pending = queueItems.filter(item => item.status !== 'synced');
 
-  for (const mutation of inventoryMutations) {
-    if (mutation.action === 'delete') {
-      await db.inventoryItems.delete(mutation.payload?.id);
+  for (const mutation of pending) {
+    const { entity, action, payload } = mutation;
+    if (!db[entity]) continue;
+
+    if (action === 'delete') {
+      await db[entity].delete(payload?.id);
       continue;
     }
 
-    if (mutation.action === 'create' || mutation.action === 'update') {
-      await db.inventoryItems.put(mutation.payload);
+    if (action === 'create' || action === 'update') {
+      await db[entity].put(payload);
+      continue;
+    }
+
+    if (action === 'replace' && entity === 'tripChecklist') {
+      const tripId = payload.trip_id;
+      await db.tripChecklist.where('trip_id').equals(tripId).delete();
+      if (payload.items?.length) {
+        await db.tripChecklist.bulkPut(payload.items);
+      }
     }
   }
 }
@@ -116,7 +126,7 @@ async function syncTripsFromApi() {
           await db.categories.bulkPut(normalizedCategories);
         }
 
-        await reapplyPendingInventoryMutations();
+        await reapplyPendingMutations();
       }
     );
   })().finally(() => {
@@ -330,16 +340,65 @@ export function useTrips() {
   }
 
   const stats = useMemo(() => {
-    const items = (tripsData || []).filter((trip) => trip.status !== 'archived');
-    const plannedTrips = items.filter((trip) => trip.status === 'planned').length;
-    const completedTrips = items.filter((trip) => trip.status === 'completed').length;
-    const totalBudget = items.reduce((sum, trip) => sum + trip.budget, 0);
+    const allTrips = tripsData || [];
+    const activeItems = allTrips.filter((trip) => trip.status !== 'archived');
+    const plannedTrips = activeItems.filter((trip) => trip.status === 'planned').length;
+    const completedTrips = activeItems.filter((trip) => trip.status === 'completed').length;
+    const inProgressTrips = activeItems.filter((trip) => trip.status === 'in_progress').length;
+    const totalBudget = activeItems.reduce((sum, trip) => sum + trip.budget, 0);
+
+    const completedList = allTrips.filter((t) => t.status === 'completed');
+    const totalActualSpend = completedList.reduce((sum, trip) => {
+      return sum + (trip.items || []).reduce((s, i) => s + Number(i.actual_price || 0) * Number(i.quantity || 1), 0);
+    }, 0);
+    const totalPlannedSpend = completedList.reduce((sum, trip) => {
+      return sum + (trip.items || []).reduce((s, i) => s + Number(i.planned_price || 0) * Number(i.quantity || 1), 0);
+    }, 0);
+    const avgBudget = activeItems.length ? totalBudget / activeItems.length : 0;
+
+    // Most recent completed trip
+    const lastCompletedTrip = completedList
+      .filter((t) => t.completed_at)
+      .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))[0] || null;
+
+    // Next upcoming planned trip
+    const today = dayjs();
+    const nextTrip = activeItems
+      .filter((t) => t.status === 'planned' && t.planned_for)
+      .sort((a, b) => dayjs(a.planned_for).diff(dayjs(b.planned_for)))[0] || null;
+
+    const thisMonthStart = dayjs().startOf('month');
+    const last30DaysStart = dayjs().subtract(30, 'day');
+
+    const thisMonthSpend = completedList
+      .filter(t => t.completed_at && dayjs(t.completed_at).isAfter(thisMonthStart))
+      .reduce((sum, trip) => {
+        return sum + (trip.items || []).reduce((s, i) => s + Number(i.actual_price || 0) * Number(i.quantity || 1), 0);
+      }, 0);
+
+    const tripsLast30Days = allTrips
+      .filter(t => t.status === 'completed' && t.completed_at && dayjs(t.completed_at).isAfter(last30DaysStart))
+      .length;
+    
+    const avgActualSpend = completedList.length ? totalActualSpend / completedList.length : 0;
+    const avgPlannedSpend = completedList.length ? totalPlannedSpend / completedList.length : 0;
 
     return {
       plannedTrips,
       completedTrips,
+      inProgressTrips,
       totalBudget,
-      totalTrips: items.length
+      totalActualSpend,
+      totalPlannedSpend,
+      avgBudget,
+      avgActualSpend,
+      avgPlannedSpend,
+      thisMonthSpend,
+      tripsLast30Days,
+      totalTrips: activeItems.length,
+      lastCompletedTrip,
+      nextTrip,
+      savingsVsPlan: totalPlannedSpend - totalActualSpend,
     };
   }, [tripsData]);
 

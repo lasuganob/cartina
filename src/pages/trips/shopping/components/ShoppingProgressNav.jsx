@@ -40,18 +40,23 @@ export default function ShoppingProgressNav({
   return (
     <Box
       sx={{
-        position: 'sticky',
-        bottom: 0,
-        zIndex: 100,
-        mt: 3,
-        mx: '-24px',
-        px: '24px',
+        position: { xs: 'fixed', md: 'sticky' },
+        bottom: { xs: 'calc(64px + env(safe-area-inset-bottom))', md: 0 },
+        left: { xs: 0, md: 'auto' },
+        right: { xs: 0, md: 'auto' },
+        zIndex: { xs: 1100, md: 100 },
+        mt: { xs: 0, md: 3 },
+        mx: { xs: 0, md: '-24px' },
+        mb: { xs: 0, md: '-32px' },
+        px: { xs: 2.5, md: '24px' },
         py: 2,
-        mb: '-32px',
         bgcolor: 'background.paper',
         borderTop: '1px solid',
         borderColor: 'divider',
-        boxShadow: '0 -8px 24px rgba(15, 23, 42, 0.08)'
+        boxShadow: {
+            xs: '0 -8px 24px rgba(0, 0, 0, 0.12)',
+            md: '0 -8px 24px rgba(15, 23, 42, 0.08)'
+        }
       }}
     >
       <Stack spacing={2}>

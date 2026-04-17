@@ -98,5 +98,43 @@ export const apiClient = {
       method: 'POST',
       body: payload
     });
+  },
+  // Stores
+  createStore(payload) {
+    return request('/stores', {
+      method: 'POST',
+      body: payload
+    });
+  },
+  updateStore(payload) {
+    return request('/stores/update', {
+      method: 'POST',
+      body: payload
+    });
+  },
+  deleteStore(payload) {
+    return request('/stores/delete', {
+      method: 'POST',
+      body: payload
+    });
+  },
+  // Categories
+  createCategory(payload) {
+    return request('/categories', {
+      method: 'POST',
+      body: payload
+    });
+  },
+  updateCategory(payload) {
+    return request('/categories/update', {
+      method: 'POST',
+      body: payload
+    });
+  },
+  deleteCategory(payload) {
+    return request('/categories/delete', {
+      method: 'POST',
+      body: payload
+    });
   }
 };

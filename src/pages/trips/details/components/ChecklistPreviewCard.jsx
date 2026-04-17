@@ -1,6 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Box, Button, Card, CardContent, Chip, Pagination, Stack, Typography } from '@mui/material';
+import { 
+  Box, 
+  Button, 
+  Card, 
+  CardContent, 
+  Chip, 
+  Pagination, 
+  Stack, 
+  Typography,
+  List,
+  ListItem,
+  Divider
+} from '@mui/material';
 import { formatCurrency } from '../../../../utils/formatCurrency';
+import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
 
 const ITEMS_PER_PAGE = 5;
 
@@ -17,90 +30,115 @@ export default function ChecklistPreviewCard({ items, onBuildChecklist }) {
   }, [page, pageCount]);
 
   return (
-    <Card>
-      <CardContent>
+    <Card sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider' }} elevation={0}>
+      <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
         <Stack
-          direction={{ xs: 'column', sm: 'row' }}
+          direction="row"
           justifyContent="space-between"
+          alignItems="center"
           spacing={2}
           sx={{ mb: 2 }}
         >
-          <Typography variant="h6">Checklist Preview</Typography>
-          <Chip label={`${items.length} item${items.length === 1 ? '' : 's'}`} variant="outlined" />
+          <Typography variant="body1" fontWeight={700}>Checklist Preview</Typography>
+          <Chip 
+            label={items.length} 
+            size="small"
+            sx={{ fontWeight: 700, bgcolor: 'action.selected' }} 
+          />
         </Stack>
 
         {!items.length ? (
-          <>
-            <Typography color="text.secondary" sx={{ mb: 2 }}>
-              No checklist items yet. Start by building the checklist for this trip.
+          <Box sx={{ py: 3, textAlign: 'center' }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Your checklist is empty.
             </Typography>
-            <Button variant="contained" onClick={onBuildChecklist}>
+            <Button 
+                variant="contained" 
+                onClick={onBuildChecklist}
+                fullWidth
+                sx={{ borderRadius: 2, py: 1.5 }}
+            >
               Build Checklist
             </Button>
-          </>
+          </Box>
         ) : (
-          <Stack spacing={2}>
-            {visibleItems.map((item) => (
-              <Card key={item.id} variant="outlined">
-                <CardContent>
-                  <Stack
-                    direction={{ xs: 'column', sm: 'row' }}
-                    justifyContent="space-between"
-                    spacing={2}
+          <Box>
+            <List disablePadding>
+              {visibleItems.map((item, index) => (
+                <Box key={item.id}>
+                  <ListItem 
+                    disableGutters 
+                    sx={{ 
+                      flexDirection: 'column', 
+                      alignItems: 'flex-start',
+                      py: 1.5
+                    }}
                   >
-                    <Box>
-                      <Stack direction="row" spacing={1}>
-                        <Typography variant="subtitle1">{item.item_name || item.inventory_item?.name}</Typography>
-                        {item.inventory_item?.category && (
-                          <Chip label={item.inventory_item.category.name} size="small" />
-                        )}
-                      </Stack>
-
-                      <Typography variant="body2" color="text.secondary">
-                        Code: {item.barcode || ''}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Quantity: {item.quantity || 1}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Planned: {item.planned_price == null ? 'Not set' : formatCurrency(item.planned_price)}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Actual: {item.actual_price == null ? 'Not purchased' : formatCurrency(item.actual_price)}
-                      </Typography>
-                    </Box>
-                    <Stack direction="row" spacing={1}>
-                      {item.is_unplanned ? <Chip label="Unplanned" size="small" /> : null}
-                      <Chip
-                        label={item.is_purchased ? 'Purchased' : 'Pending'}
-                        color={item.is_purchased ? 'success' : 'default'}
-                        size="small"
-                      />
+                    {/* Top Row: Name and Status */}
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ width: '100%', mb: 0.5 }}>
+                        <Typography variant="button" sx={{ fontWeight: 600, textTransform: 'none', lineHeight: 1.2 }}>
+                            {item.item_name || item.inventory_item?.name}
+                        </Typography>
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                             {item.is_unplanned && <Chip label="Unplanned" size="extraSmall" color="warning" variant="outlined" sx={{ fontSize: '10px', height: 18 }} />}
+                             <Box sx={{ 
+                                 width: 8, 
+                                 height: 8, 
+                                 borderRadius: '50%', 
+                                 bgcolor: item.is_purchased ? 'success.main' : 'text.disabled' 
+                             }} />
+                        </Stack>
                     </Stack>
-                  </Stack>
-                </CardContent>
-              </Card>
-            ))}
-            {items.length > visibleItems.length ? (
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
+
+                    {/* Bottom Row: Metadata Tags */}
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ gap: 1 }}>
+                        {item.inventory_item?.category && (
+                          <Stack direction="row" spacing={0.5} alignItems="center">
+                             <CategoryRoundedIcon sx={{ fontSize: 12, color: 'text.disabled' }} />
+                             <Typography variant="caption" color="text.secondary">{item.inventory_item.category.name}</Typography>
+                          </Stack>
+                        )}
+                        <Typography variant="caption" color="text.disabled">·</Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                            {item.quantity} units
+                        </Typography>
+                        <Typography variant="caption" color="text.disabled">·</Typography>
+                        <Typography variant="caption" color={item.actual_price ? 'primary.main' : 'text.secondary'} sx={{ fontWeight: 600 }}>
+                            {item.actual_price ? formatCurrency(item.actual_price) : (item.planned_price ? formatCurrency(item.planned_price) : 'No price')}
+                        </Typography>
+                    </Stack>
+                  </ListItem>
+                  {index < visibleItems.length - 1 && <Divider />}
+                </Box>
+              ))}
+            </List>
+
+            <Stack
+                direction="row"
                 justifyContent="space-between"
-                alignItems={{ xs: 'flex-start', sm: 'center' }}
-                spacing={1.5}
-              >
-                <Typography variant="body2" color="text.secondary">
-                  Showing {(page - 1) * ITEMS_PER_PAGE + 1}-{Math.min(page * ITEMS_PER_PAGE, items.length)} of {items.length} checklist items.
+                alignItems="center"
+                sx={{ mt: 2, pt: 1 }}
+            >
+                <Typography variant="caption" color="text.secondary">
+                    Page {page} of {pageCount}
                 </Typography>
                 <Pagination
-                  page={page}
-                  count={pageCount}
-                  color="primary"
-                  size="small"
-                  onChange={(_, value) => setPage(value)}
+                    page={page}
+                    count={pageCount}
+                    color="primary"
+                    size="small"
+                    shape="rounded"
+                    onChange={(_, value) => setPage(value)}
+                    sx={{
+                        '& .MuiPaginationItem-root': {
+                            fontSize: '11px',
+                            minWidth: 28,
+                            height: 28
+                        }
+                    }}
                 />
-              </Stack>
-            ) : null}
-          </Stack>
+            </Stack>
+          </Box>
         )}
       </CardContent>
     </Card>

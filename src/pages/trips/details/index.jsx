@@ -17,12 +17,13 @@ import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../../../components/PageHeader';
 import StatusChip from '../../../components/StatusChip';
 import { useTrips } from '../../../hooks/useTrips';
-import BudgetSnapshotCard from './components/BudgetSnapshotCard';
 import BuildChecklistDialog from './components/BuildChecklistDialog';
 import ChecklistPreviewCard from './components/ChecklistPreviewCard';
 import DetailSkeleton from './components/DetailSkeleton';
 import QuickActionsCard from './components/QuickActionsCard';
 import TripDetailsCard from './components/TripDetailsCard';
+import TripStatsCard from './components/TripStatsCard';
+import TripTimelineCard from './components/TripTimelineCard';
 
 export default function TripDetailsPage() {
   const { tripId } = useParams();
@@ -129,10 +130,19 @@ export default function TripDetailsPage() {
       ) : null}
 
       <Grid container spacing={3}>
-        <Grid size={{ xs: 12, lg: 9 }}>
+        {/* Main Column */}
+        <Grid size={{ xs: 12, lg: 8 }}>
           <Stack spacing={3}>
             <TripDetailsCard trip={trip} saving={busy} onSave={handleSaveDetails} />
             <ChecklistPreviewCard items={trip.items} onBuildChecklist={handleBuildChecklist} />
+          </Stack>
+        </Grid>
+
+        {/* Sidebar - Stats & Timeline */}
+        <Grid size={{ xs: 12, lg: 4 }}>
+          <Stack spacing={3}>
+            <TripStatsCard trip={trip} />
+            <TripTimelineCard trip={trip} />
           </Stack>
         </Grid>
       </Grid>

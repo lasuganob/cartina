@@ -30,6 +30,9 @@ const INVENTORY_HEADERS = [
   "created_at",
 ];
 
+const STORE_HEADERS = ["id", "name", "logo_path"];
+const CATEGORY_HEADERS = ["id", "name"];
+
 function doGet(e) {
   try {
     const path = getPath_(e);
@@ -95,6 +98,48 @@ function doPost(e) {
       return jsonResponse_({
         success: true,
         id: deleteInventoryItem_(payload),
+      });
+    }
+
+    if (path === "/stores") {
+      return jsonResponse_({
+        success: true,
+        item: createStore_(payload),
+      });
+    }
+
+    if (path === "/stores/update") {
+      return jsonResponse_({
+        success: true,
+        item: updateStore_(payload),
+      });
+    }
+
+    if (path === "/stores/delete") {
+      return jsonResponse_({
+        success: true,
+        id: deleteStore_(payload),
+      });
+    }
+
+    if (path === "/categories") {
+      return jsonResponse_({
+        success: true,
+        item: createCategory_(payload),
+      });
+    }
+
+    if (path === "/categories/update") {
+      return jsonResponse_({
+        success: true,
+        item: updateCategory_(payload),
+      });
+    }
+
+    if (path === "/categories/delete") {
+      return jsonResponse_({
+        success: true,
+        id: deleteCategory_(payload),
       });
     }
 
@@ -372,7 +417,10 @@ function updateInventoryItem_(payload) {
     throw new Error("Inventory item id is required.");
   }
 
-  const sheet = getOrCreateSheet_(SHEET_NAMES.inventoryItems, INVENTORY_HEADERS);
+  const sheet = getOrCreateSheet_(
+    SHEET_NAMES.inventoryItems,
+    INVENTORY_HEADERS,
+  );
   const values = sheet.getDataRange().getValues();
 
   if (values.length === 1) {
@@ -402,8 +450,14 @@ function updateInventoryItem_(payload) {
           payload.usual_price === "" || payload.usual_price == null
             ? 0
             : Number(payload.usual_price),
-        barcode: payload.barcode != null ? payload.barcode : existingItem.barcode || "",
-        created_at: payload.created_at || existingItem.created_at || new Date().toISOString(),
+        barcode:
+          payload.barcode != null
+            ? payload.barcode
+            : existingItem.barcode || "",
+        created_at:
+          payload.created_at ||
+          existingItem.created_at ||
+          new Date().toISOString(),
       };
 
       const orderedRow = headers.map(function (header) {
@@ -426,7 +480,10 @@ function deleteInventoryItem_(payload) {
     throw new Error("Inventory item id is required.");
   }
 
-  const sheet = getOrCreateSheet_(SHEET_NAMES.inventoryItems, INVENTORY_HEADERS);
+  const sheet = getOrCreateSheet_(
+    SHEET_NAMES.inventoryItems,
+    INVENTORY_HEADERS,
+  );
   const values = sheet.getDataRange().getValues();
 
   if (values.length === 1) {
@@ -451,7 +508,84 @@ function getStores_() {
 }
 
 function getCategories_() {
-  return getRows_(SHEET_NAMES.categories, ["id", "name"]);
+  return getRows_(SHEET_NAMES.categories, CATEGORY_HEADERS);
+}
+
+function createStore_(payload) {
+  const headers = STORE_HEADERS;
+  const sheet = getOrCreateSheet_(SHEET_NAMES.stores, headers);
+  const item = {
+    id: resolveRowId_(sheet, headers, payload.id),
+    name: payload.name || "",
+    logo_path: payload.logo_path || "",
+  };
+  sheet.appendRow([item.id, item.name, item.logo_path]);
+  return item;
+}
+
+function updateStore_(payload) {
+  return updateRow_(SHEET_NAMES.stores, STORE_HEADERS, payload);
+}
+
+function deleteStore_(payload) {
+  return deleteRow_(SHEET_NAMES.stores, STORE_HEADERS, payload);
+}
+
+function createCategory_(payload) {
+  const headers = CATEGORY_HEADERS;
+  const sheet = getOrCreateSheet_(SHEET_NAMES.categories, headers);
+  const item = {
+    id: resolveRowId_(sheet, headers, payload.id),
+    name: payload.name || "",
+  };
+  sheet.appendRow([item.id, item.name]);
+  return item;
+}
+
+function updateCategory_(payload) {
+  return updateRow_(SHEET_NAMES.categories, CATEGORY_HEADERS, payload);
+}
+
+function deleteCategory_(payload) {
+  return deleteRow_(SHEET_NAMES.categories, CATEGORY_HEADERS, payload);
+}
+
+function updateRow_(sheetName, headers, payload) {
+  if (!payload.id) {
+    throw new Error("ID is required for update.");
+  }
+  const sheet = getOrCreateSheet_(sheetName, headers);
+  const values = sheet.getDataRange().getValues();
+  const idIndex = values[0].indexOf("id");
+
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][idIndex]) === String(payload.id)) {
+      const existing = {};
+      values[0].forEach((h, j) => (existing[h] = values[i][j]));
+      const updated = { ...existing, ...payload };
+      const row = values[0].map((h) => (updated[h] != null ? updated[h] : ""));
+      sheet.getRange(i + 1, 1, 1, row.length).setValues([row]);
+      return updated;
+    }
+  }
+  throw new Error("Record not found.");
+}
+
+function deleteRow_(sheetName, headers, payload) {
+  if (!payload.id) {
+    throw new Error("ID is required for deletion.");
+  }
+  const sheet = getOrCreateSheet_(sheetName, headers);
+  const values = sheet.getDataRange().getValues();
+  const idIndex = values[0].indexOf("id");
+
+  for (var i = values.length - 1; i >= 1; i--) {
+    if (String(values[i][idIndex]) === String(payload.id)) {
+      sheet.deleteRow(i + 1);
+      return payload.id;
+    }
+  }
+  throw new Error("Record not found.");
 }
 
 function getPath_(e) {
