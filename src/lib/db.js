@@ -62,3 +62,12 @@ export function isMissingObjectStoreError(error) {
     message.includes('The specified object store was not found')
   );
 }
+
+export function getShoppingDraftKey(tripId) {
+  return `trip-shopping-draft:${tripId}`;
+}
+
+export function getShoppingSessionKey(tripId) {
+  return `trip-shopping-session:${tripId}`;
+}
+

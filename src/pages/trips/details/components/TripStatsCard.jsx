@@ -1,4 +1,4 @@
-import { Box, Card, CardContent, LinearProgress, Stack, Typography } from '@mui/material';
+import { Box, Card, CardContent, Grid, LinearProgress, Stack, Typography } from '@mui/material';
 import { formatCurrency } from '../../../../utils/formatCurrency';
 
 function formatTimer(ms) {
@@ -95,32 +95,40 @@ export default function TripStatsCard({ trip }) {
               <Box sx={{ flex: 1, bgcolor: 'action.selected' }} />
             </Stack>
 
-            <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ gap: 1.5 }}>
-              <StatBox
-                label="Budget"
-                value={formatCurrency(trip.budget)}
-              />
-              <StatBox
-                label="Planned"
-                value={formatCurrency(plannedTotal)}
-                color={plannedTotal > trip.budget ? 'warning.main' : undefined}
-              />
+            <Grid container spacing={2} >
+              <Grid size={{ xs: 6 }}>
+                <StatBox
+                  label="Budget"
+                  value={formatCurrency(trip.budget)}
+                />
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <StatBox
+                  label="Planned"
+                  value={formatCurrency(plannedTotal)}
+                  color={plannedTotal > trip.budget ? 'warning.main' : undefined}
+                />
+              </Grid>
               {showSpend && (
                 <>
-                  <StatBox
-                    label="Actual Spend"
-                    value={formatCurrency(actualTotal)}
-                    color={actualTotal > trip.budget ? 'error.main' : 'success.main'}
-                  />
-                  <StatBox
-                    label="Remaining"
-                    value={formatCurrency(remaining)}
-                    color={remaining < 0 ? 'error.main' : 'success.main'}
-                    sub={variance !== 0 ? `${variance > 0 ? '+' : ''}${formatCurrency(variance)} vs planned` : undefined}
-                  />
+                  <Grid size={{ xs: 6 }}>
+                    <StatBox
+                      label="Actual Spend"
+                      value={formatCurrency(actualTotal)}
+                      color={actualTotal > trip.budget ? 'error.main' : 'success.main'}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 6 }}>
+                    <StatBox
+                      label="Remaining"
+                      value={formatCurrency(remaining)}
+                      color={remaining < 0 ? 'error.main' : 'success.main'}
+                      sub={variance !== 0 ? `${variance > 0 ? '+' : ''}${formatCurrency(variance)} vs planned` : undefined}
+                    />
+                  </Grid>
                 </>
               )}
-            </Stack>
+            </Grid>
           </Box>
         )}
       </CardContent>

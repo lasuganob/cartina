@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Box,
@@ -21,12 +21,25 @@ import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import { formatCurrency } from '../../../../utils/formatCurrency';
 
 export default function ShoppingItemCard({ item, index, onChange, open, onOpen, onClose, scannerStatus }) {
+  const [actualPriceError, setActualPriceError] = useState('');
 
   const plannedValue = item.planned_price === '' ? null : Number(item.planned_price);
   const actualValue = item.actual_price === '' ? null : Number(item.actual_price);
   const lineSubtotal = (actualValue || 0) * Number(item.quantity || 1);
 
+  useEffect(() => {
+    if (!open) {
+      setActualPriceError('');
+    }
+  }, [open, item.id]);
+
   function handleMarkPurchased() {
+    if (item.actual_price === '' || item.actual_price === null || item.actual_price === undefined) {
+      setActualPriceError('Actual price is required.');
+      return;
+    }
+
+    setActualPriceError('');
     onChange({ is_purchased: true });
     onClose();
   }
@@ -197,13 +210,14 @@ export default function ShoppingItemCard({ item, index, onChange, open, onOpen, 
                 type="number"
                 value={item.actual_price}
                 onChange={(e) => {
-                  const value = e.target.value;
+                  setActualPriceError('');
                   onChange({
-                    actual_price: value,
-                    is_purchased: value !== '' ? true : item.is_purchased,
+                    actual_price: e.target.value
                   });
                 }}
                 inputProps={{ min: 0, step: '0.01' }}
+                error={Boolean(actualPriceError)}
+                helperText={actualPriceError}
                 InputProps={{
                   startAdornment: <InputAdornment position="start">₱</InputAdornment>,
                 }}

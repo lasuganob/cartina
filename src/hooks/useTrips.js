@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { apiClient } from '../api/client';
-import { clearQueuedChecklistReplaces, queueMutation, db } from '../lib/db';
+import { clearQueuedChecklistReplaces, queueMutation, db, getShoppingDraftKey, getShoppingSessionKey } from '../lib/db';
+
 import { useAppContext } from '../context/AppContext';
-import { processQueueIfOnline } from './useOfflineSync';
 
 let inFlightTripsSync = null;
 
@@ -167,14 +167,16 @@ export function useTrips() {
     }, {});
 
     const checklistByTripId = checklistItems.reduce((groups, item) => {
-      if (!groups[item.trip_id]) {
-        groups[item.trip_id] = [];
+      const tripKey = String(item.trip_id || '');
+
+      if (!groups[tripKey]) {
+        groups[tripKey] = [];
       }
 
-      groups[item.trip_id].push({
+      groups[tripKey].push({
         ...item,
         inventory_item: item.inventory_item_id
-          ? inventoryItemsById[item.inventory_item_id] || null
+          ? inventoryItemsById[String(item.inventory_item_id)] || null
           : null
       });
       return groups;
@@ -182,8 +184,8 @@ export function useTrips() {
 
     return trips.map((trip) => ({
       ...trip,
-      items: checklistByTripId[trip.id] || [],
-      store: trip.store_id ? storesById[trip.store_id] || null : null
+      items: checklistByTripId[String(trip.id)] || [],
+      store: trip.store_id ? storesById[String(trip.store_id)] || null : null
     }));
   }, []);
   const { showSnackbar } = useAppContext();
@@ -230,8 +232,15 @@ export function useTrips() {
   }, []);
 
   async function addTrip(values) {
+    const response = await apiClient.getNextTripId();
+    const nextTripId = Number(response?.next_id);
+
+    if (!Number.isFinite(nextTripId) || nextTripId <= 0) {
+      throw new Error('Could not retrieve the next trip ID from Google Sheets.');
+    }
+
     const trip = normalizeTrip({
-      id: crypto.randomUUID(),
+      id: nextTripId,
       ...values,
       status: 'planned',
       created_at: new Date().toISOString(),
@@ -240,7 +249,7 @@ export function useTrips() {
 
     await db.trips.put(trip);
     await queueMutation('trips', 'create', trip);
-    await processQueueIfOnline();
+
     showSnackbar('Trip saved locally and queued for sync.', 'success');
 
     const persistedTrip = await db.trips.get(trip.id);
@@ -279,7 +288,14 @@ export function useTrips() {
 
     await db.trips.put(updatedTrip);
     await queueMutation('trips', 'update', updatedTrip);
-    await processQueueIfOnline();
+
+    // If trip is completed, clear any persistent shopping session or draft from localStorage
+    if (updatedTrip.status === 'completed') {
+      window.localStorage.removeItem(getShoppingDraftKey(id));
+      window.localStorage.removeItem(getShoppingSessionKey(id));
+    }
+
+
     showSnackbar('Trip updated locally and queued for sync.', 'success');
     return updatedTrip;
   }
@@ -290,23 +306,40 @@ export function useTrips() {
     // Fetch all inventory items once to optimize enrichment
     const inventoryItems = await db.inventoryItems.toArray();
     const inventoryMap = new Map(inventoryItems.map((inv) => [String(inv.id), inv]));
+    const itemsMissingIds = items.filter((item) => item.id === '' || item.id == null);
+    let reservedIds = [];
+
+    if (itemsMissingIds.length > 0) {
+      const response = await apiClient.getNextTripChecklistIds(itemsMissingIds.length);
+      reservedIds = Array.isArray(response?.ids) ? response.ids : [];
+
+      if (reservedIds.length !== itemsMissingIds.length) {
+        throw new Error('Could not retrieve checklist item IDs from Google Sheets.');
+      }
+    }
+
+    let reservedIdIndex = 0;
 
     const normalizedItems = items.map((item, index) => {
+      const { draft_key, ...persistableItem } = item;
       const inventoryRef = item.inventory_item_id ? inventoryMap.get(String(item.inventory_item_id)) : null;
-      
+      const nextItemId =
+        persistableItem.id === '' || persistableItem.id == null ? reservedIds[reservedIdIndex++] : persistableItem.id;
+
       return normalizeChecklistItem({
-        id: item.id || crypto.randomUUID(),
+        ...persistableItem,
+        id: nextItemId,
         trip_id: tripId,
-        item_name: item.item_name || inventoryRef?.name || item.inventory_item?.name || '',
-        inventory_item_id: item.inventory_item_id || '',
-        barcode: item.barcode || inventoryRef?.barcode || item.inventory_item?.barcode || '',
-        quantity: item.quantity || 1,
-        planned_price: item.planned_price,
-        actual_price: item.actual_price,
-        is_purchased: item.is_purchased,
-        is_unplanned: item.is_unplanned,
-        sort_order: item.sort_order ?? index,
-        created_at: item.created_at || new Date().toISOString()
+        item_name: persistableItem.item_name || inventoryRef?.name || persistableItem.inventory_item?.name || '',
+        inventory_item_id: persistableItem.inventory_item_id || '',
+        barcode: persistableItem.barcode || inventoryRef?.barcode || persistableItem.inventory_item?.barcode || '',
+        quantity: persistableItem.quantity || 1,
+        planned_price: persistableItem.planned_price,
+        actual_price: persistableItem.actual_price,
+        is_purchased: persistableItem.is_purchased,
+        is_unplanned: persistableItem.is_unplanned,
+        sort_order: persistableItem.sort_order ?? index,
+        created_at: persistableItem.created_at || new Date().toISOString()
       });
     });
 
@@ -329,8 +362,6 @@ export function useTrips() {
         trip_id: tripId,
         items: normalizedItems
       });
-
-      await processQueueIfOnline();
     }
 
     if (notify) {

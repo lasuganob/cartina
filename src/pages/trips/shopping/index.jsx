@@ -19,25 +19,20 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import PageHeader from '../../../components/PageHeader';
 import BarcodeScannerDialog from '../../../components/BarcodeScannerDialog';
 import { useTrips } from '../../../hooks/useTrips';
-import { clearQueuedChecklistReplaces, db, queueMutation } from '../../../lib/db';
-import { processQueueIfOnline } from '../../../hooks/useOfflineSync';
+import { db, getShoppingDraftKey, getShoppingSessionKey } from '../../../lib/db';
+
 import { useBarcodeLookup } from '../../../hooks/useBarcodeLookup';
 
 import ShoppingItemCard from './components/ShoppingItemCard';
 import UnplannedItemForm from './components/UnplannedItemForm';
 import ShoppingProgressNav from './components/ShoppingProgressNav';
 
-function getShoppingDraftKey(tripId) {
-  return `trip-shopping-draft:${tripId}`;
-}
 
-function getShoppingSessionKey(tripId) {
-  return `trip-shopping-session:${tripId}`;
-}
 
 function normalizeDraftItem(item, index) {
   return {
-    id: item.id || crypto.randomUUID(),
+    id: item.id || '',
+    draft_key: item.draft_key || item.id || `draft-${index}-${item.item_name || 'item'}`,
     trip_id: item.trip_id || '',
     item_name: item.item_name || item.inventory_item?.name || '',
     inventory_item_id: item.inventory_item_id || '',
@@ -62,6 +57,7 @@ function normalizeDraftItem(item, index) {
 function buildPersistedItems(items, tripId) {
   return items.map((item, index) => ({
     ...item,
+    draft_key: undefined,
     trip_id: tripId,
     quantity: Math.max(1, Number(item.quantity || 1)),
     planned_price: item.planned_price === '' ? null : Number(item.planned_price),
@@ -111,6 +107,7 @@ export default function TripShoppingPage() {
   });
   const hasPersistedOnExitRef = useRef(false);
   const isCompletingRef = useRef(false);
+  const skipPersistOnExitRef = useRef(false);
   const initializedTripIdRef = useRef('');
   const updateTripRef = useRef(updateTrip);
   const replaceTripChecklistRef = useRef(replaceTripChecklist);
@@ -154,7 +151,6 @@ export default function TripShoppingPage() {
       lastStartedAt: (parsedSession?.isRunning ?? true) ? Date.now() : null,
       startedAt: parsedSession?.startedAt || trip.started_at || nowIso
     });
-    void clearQueuedChecklistReplaces(trip.id);
   }, [trip]);
 
   useEffect(() => {
@@ -228,7 +224,11 @@ export default function TripShoppingPage() {
 
   useEffect(() => {
     function persistOnExit() {
-      if (hasPersistedOnExitRef.current || isCompletingRef.current) {
+      if (
+        hasPersistedOnExitRef.current ||
+        isCompletingRef.current ||
+        skipPersistOnExitRef.current
+      ) {
         return;
       }
 
@@ -279,7 +279,6 @@ export default function TripShoppingPage() {
   function handleAddUnplannedItem(inventoryItem = null) {
     const newItem = normalizeDraftItem(
       {
-        id: crypto.randomUUID(),
         trip_id: trip.id,
         item_name: unplannedDraft.item_name.trim(),
         quantity: unplannedDraft.quantity,
@@ -311,7 +310,7 @@ export default function TripShoppingPage() {
     if (existingIndex !== -1) {
       const item = draftItems[existingIndex];
       handleUpdateItem(existingIndex, { is_purchased: true });
-      setActiveItemId(item.id);
+      setActiveItemId(item.draft_key || item.id);
       setScannerStatus('found');
       return;
     }
@@ -360,6 +359,7 @@ export default function TripShoppingPage() {
     setBusy(true);
     try {
       isCompletingRef.current = true;
+      skipPersistOnExitRef.current = true;
       hasPersistedOnExitRef.current = true;
       await replaceTripChecklist(trip.id, buildPersistedItems(draftItems, trip.id), {
         sync: true,
@@ -371,9 +371,12 @@ export default function TripShoppingPage() {
         status: 'completed',
         started_at: sessionState.startedAt || trip.started_at || new Date().toISOString(),
         elapsed_ms: elapsedMs,
-        completed_at: new Date().toISOString(),
+        completed_at: new Date().toISOString()
       });
       navigate(`/trips/${trip.id}`);
+    } catch (error) {
+      skipPersistOnExitRef.current = false;
+      throw error;
     } finally {
       isCompletingRef.current = false;
       setBusy(false);
@@ -499,20 +502,20 @@ export default function TripShoppingPage() {
                         .filter(({ item }) => !item.is_purchased)
                         .map(({ item, index }) => (
                           <ShoppingItemCard
-                            key={item.id}
+                            key={item.draft_key || item.id || `pending-${index}`}
                             item={item}
                             index={index}
                             onChange={(changes) => handleUpdateItem(index, changes)}
-                            open={activeItemId === item.id}
+                            open={activeItemId === (item.draft_key || item.id)}
                             onOpen={() => {
-                              setActiveItemId(item.id);
+                              setActiveItemId(item.draft_key || item.id);
                               setScannerStatus(null);
                             }}
                             onClose={() => {
                               setActiveItemId(null);
                               setScannerStatus(null);
                             }}
-                            scannerStatus={activeItemId === item.id ? scannerStatus : null}
+                            scannerStatus={activeItemId === (item.draft_key || item.id) ? scannerStatus : null}
                           />
                         ))}
                     </Stack>
@@ -540,20 +543,20 @@ export default function TripShoppingPage() {
                         .filter(({ item }) => item.is_purchased)
                         .map(({ item, index }) => (
                           <ShoppingItemCard
-                            key={item.id}
+                            key={item.draft_key || item.id || `purchased-${index}`}
                             item={item}
                             index={index}
                             onChange={(changes) => handleUpdateItem(index, changes)}
-                            open={activeItemId === item.id}
+                            open={activeItemId === (item.draft_key || item.id)}
                             onOpen={() => {
-                              setActiveItemId(item.id);
+                              setActiveItemId(item.draft_key || item.id);
                               setScannerStatus(null);
                             }}
                             onClose={() => {
                               setActiveItemId(null);
                               setScannerStatus(null);
                             }}
-                            scannerStatus={activeItemId === item.id ? scannerStatus : null}
+                            scannerStatus={activeItemId === (item.draft_key || item.id) ? scannerStatus : null}
                           />
                         ))}
                     </Stack>

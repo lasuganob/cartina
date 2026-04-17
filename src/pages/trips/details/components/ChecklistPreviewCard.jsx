@@ -65,7 +65,7 @@ export default function ChecklistPreviewCard({ items, onBuildChecklist }) {
           <Box>
             <List disablePadding>
               {visibleItems.map((item, index) => (
-                <Box key={item.id}>
+                <Box key={item.draft_key || item.id || `${item.item_name}-${index}`}>
                   <ListItem 
                     disableGutters 
                     sx={{ 

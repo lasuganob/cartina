@@ -19,8 +19,10 @@ import { useLiveQuery } from 'dexie-react-hooks';
 
 import PageHeader from '../../components/PageHeader';
 import { useAppContext } from '../../context/AppContext';
-import { processQueueIfOnline } from '../../hooks/useOfflineSync';
 import { db, queueMutation } from '../../lib/db';
+
+
+
 import { useBarcodeLookup } from '../../hooks/useBarcodeLookup';
 
 import InventoryEditor from './components/InventoryEditor';
@@ -203,7 +205,7 @@ export default function InventoryPage() {
 
       await db.inventoryItems.put(normalizedItem);
       await queueMutation('inventoryItems', action, normalizedItem);
-      await processQueueIfOnline();
+
       showSnackbar(`Inventory item ${editingItem ? 'updated' : 'saved'} locally and queued for sync.`, 'success');
       handleCloseDialog();
     } finally {
@@ -215,7 +217,7 @@ export default function InventoryPage() {
     handleCloseMenu();
     await db.inventoryItems.delete(item.id);
     await queueMutation('inventoryItems', 'delete', { id: item.id });
-    await processQueueIfOnline();
+
     showSnackbar('Inventory item deleted locally and queued for sync.', 'success');
   }
 
@@ -271,7 +273,7 @@ export default function InventoryPage() {
             <TextField
               fullWidth
               variant="outlined"
-              placeholder="Search by name, barcode, or category..."
+              placeholder="Search by name, category, or barcode..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               size="small"
@@ -280,7 +282,8 @@ export default function InventoryPage() {
                   <InputAdornment position="start">
                     <SearchRoundedIcon color="action" />
                   </InputAdornment>
-                )
+                ),
+                sx: { fontSize: "12px" }
               }}
             />
           </Box>

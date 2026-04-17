@@ -5,6 +5,8 @@ import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTrips } from '../../hooks/useTrips';
 import { formatCurrency } from '../../utils/formatCurrency';
+import { getShoppingSessionKey } from '../../lib/db';
+
 
 /**
  * A floating "Global Status Pill" that appears when a shopping trip is in progress.
@@ -25,7 +27,7 @@ export default function ActiveTripPill() {
   const sessionInfo = useMemo(() => {
     if (!activeTrip) return null;
     try {
-      const data = localStorage.getItem(`trip-shopping-session:${activeTrip.id}`);
+      const data = localStorage.getItem(getShoppingSessionKey(activeTrip.id));
       return data ? JSON.parse(data) : null;
     } catch {
       return null;

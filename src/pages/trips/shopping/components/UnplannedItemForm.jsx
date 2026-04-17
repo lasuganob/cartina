@@ -18,7 +18,9 @@ import Alert from '@mui/material/Alert';
 import MenuItem from '@mui/material/MenuItem';
 import { formatCurrency } from '../../../../utils/formatCurrency';
 import { db, queueMutation } from '../../../../lib/db';
-import { processQueueIfOnline } from '../../../../hooks/useOfflineSync';
+
+
+
 import { useState } from 'react';
 
 export default function UnplannedItemForm({
@@ -84,7 +86,7 @@ export default function UnplannedItemForm({
 
       await db.inventoryItems.put(newItem);
       await queueMutation('inventoryItems', 'create', newItem);
-      await processQueueIfOnline();
+
       
       handleAddUnplannedItem({ ...newItem, category: selectedCategory });
     } finally {

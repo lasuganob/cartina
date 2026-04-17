@@ -9,6 +9,18 @@ export function AppProvider({ children }) {
     severity: 'info'
   });
 
+  // Sync state — lifted here so both layouts (Desktop + Mobile) can read it
+  // without each mounting a separate useOfflineSync instance.
+  // The actual hook instance lives in App.jsx and passes values down via context.
+  const [syncState, setSyncState] = useState({
+    isOnline: navigator.onLine,
+    isSyncing: false,
+    lastSynced: null,
+    pendingCount: 0,
+    syncError: null,
+    syncNow: () => Promise.resolve(),
+  });
+
   const value = useMemo(
     () => ({
       snackbar,
@@ -17,9 +29,12 @@ export function AppProvider({ children }) {
       },
       hideSnackbar() {
         setSnackbar((current) => ({ ...current, open: false }));
-      }
+      },
+      // Sync
+      syncState,
+      setSyncState,
     }),
-    [snackbar]
+    [snackbar, syncState]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

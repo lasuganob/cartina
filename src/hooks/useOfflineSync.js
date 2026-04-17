@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { apiClient } from '../api/client';
 import { db } from '../lib/db';
 
@@ -274,38 +274,100 @@ export async function processQueue() {
   return inFlightQueueSync;
 }
 
-export async function processQueueIfOnline() {
-  if (!navigator.onLine) {
-    return;
-  }
+/**
+ * Pulls all canonical data from Google Sheets and merges it into the local
+ * IndexedDB. Items that have pending/failed queue entries are NOT overwritten
+ * (local wins). Everything else is updated from remote (remote wins).
+ */
+async function pullAndMerge() {
+  const [tripsRes, inventoryRes, storesRes, categoriesRes] = await Promise.all([
+    apiClient.getTrips(),
+    apiClient.getInventoryItems(),
+    apiClient.getStores(),
+    apiClient.getCategories(),
+  ]);
 
-  return processQueue();
+  // Collect IDs of locally-pending items — these must NOT be overwritten
+  const pendingQueue = await db.syncQueue
+    .where('status').anyOf(['pending', 'failed'])
+    .toArray();
+
+  const pendingIds = {
+    trips: new Set(pendingQueue.filter(q => q.entity === 'trips').map(q => String(q.payload?.id))),
+    inventoryItems: new Set(pendingQueue.filter(q => q.entity === 'inventoryItems').map(q => String(q.payload?.id))),
+    stores: new Set(pendingQueue.filter(q => q.entity === 'stores').map(q => String(q.payload?.id))),
+    categories: new Set(pendingQueue.filter(q => q.entity === 'categories').map(q => String(q.payload?.id))),
+  };
+
+  const safeItems = (items, pendingSet) =>
+    (items || []).filter(item => !pendingSet.has(String(item.id)));
+
+  await db.transaction('rw', db.trips, db.inventoryItems, db.stores, db.categories, async () => {
+    if (tripsRes?.items) {
+      await db.trips.bulkPut(safeItems(tripsRes.items, pendingIds.trips));
+    }
+    if (inventoryRes?.items) {
+      await db.inventoryItems.bulkPut(safeItems(inventoryRes.items, pendingIds.inventoryItems));
+    }
+    if (storesRes?.items) {
+      await db.stores.bulkPut(safeItems(storesRes.items, pendingIds.stores));
+    }
+    if (categoriesRes?.items) {
+      await db.categories.bulkPut(safeItems(categoriesRes.items, pendingIds.categories));
+    }
+  });
 }
+
+/**
+ * Full bidirectional sync:
+ *   1. Push all pending local changes to Google Sheets
+ *   2. Pull canonical data from Google Sheets and merge locally
+ */
+export async function syncBidirectional() {
+  await processQueue();
+  await pullAndMerge();
+}
+
+/**
+ * Reads the pending sync queue count from IndexedDB.
+ */
+export async function getPendingCount() {
+  return db.syncQueue.where('status').anyOf(['pending', 'failed']).count();
+}
+
+const LAST_SYNCED_KEY = 'cartina:lastSynced';
 
 export function useOfflineSync() {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSynced, setLastSynced] = useState(() => localStorage.getItem(LAST_SYNCED_KEY));
+  const [pendingCount, setPendingCount] = useState(0);
+  const [syncError, setSyncError] = useState(null);
 
+  // Keep pendingCount live by polling IndexedDB
   useEffect(() => {
-    function syncAndUpdateStatus(nextStatus) {
-      setIsOnline(nextStatus);
-      if (nextStatus) {
-        processQueue();
-      }
+    let cancelled = false;
+
+    async function refresh() {
+      const count = await getPendingCount();
+      if (!cancelled) setPendingCount(count);
     }
 
-    function handleOnline() {
-      syncAndUpdateStatus(true);
-    }
+    refresh();
+    const interval = setInterval(refresh, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
-    function handleOffline() {
-      syncAndUpdateStatus(false);
-    }
+  // Track online/offline status only — no auto-sync
+  useEffect(() => {
+    function handleOnline() { setIsOnline(true); }
+    function handleOffline() { setIsOnline(false); }
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    if (navigator.onLine) {
-      processQueue();
-    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -313,5 +375,25 @@ export function useOfflineSync() {
     };
   }, []);
 
-  return { isOnline, syncNow: processQueue };
+  const syncNow = useCallback(async () => {
+    if (isSyncing) return;
+    setSyncError(null);
+    setIsSyncing(true);
+    try {
+      await syncBidirectional();
+      const ts = new Date().toISOString();
+      localStorage.setItem(LAST_SYNCED_KEY, ts);
+      setLastSynced(ts);
+      // Refresh pending count after sync
+      const count = await getPendingCount();
+      setPendingCount(count);
+    } catch (error) {
+      setSyncError(error.message || 'Sync failed');
+      throw error;
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [isSyncing]);
+
+  return { isOnline, isSyncing, lastSynced, pendingCount, syncError, syncNow };
 }

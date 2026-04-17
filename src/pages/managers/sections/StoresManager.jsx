@@ -21,7 +21,9 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, queueMutation } from '../../../lib/db';
 import { useAppContext } from '../../../context/AppContext';
-import { processQueueIfOnline } from '../../../hooks/useOfflineSync';
+
+
+
 
 const PAGE_SIZE = 5;
 
@@ -64,7 +66,7 @@ export default function StoresManager() {
 
       await db.stores.put(storeData);
       await queueMutation('stores', editingStore ? 'update' : 'create', storeData);
-      processQueueIfOnline();
+
       
       showSnackbar(`Store ${editingStore ? 'updated' : 'added'} successfully`, 'success');
       setPanelOpen(false);
@@ -78,7 +80,7 @@ export default function StoresManager() {
       try {
         await db.stores.delete(id);
         await queueMutation('stores', 'delete', { id });
-        processQueueIfOnline();
+
         showSnackbar('Store deleted', 'success');
       } catch (error) {
         showSnackbar('Error deleting store', 'error');

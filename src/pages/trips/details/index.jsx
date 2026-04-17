@@ -44,18 +44,6 @@ export default function TripDetailsPage() {
     }
   }
 
-  async function handleStatusChange(status) {
-    setBusy(true);
-    try {
-      await updateTrip(trip.id, {
-        status,
-        completed_at: status === 'completed' ? new Date().toISOString() : ''
-      });
-    } finally {
-      setBusy(false);
-    }
-  }
-
   function handleBuildChecklist() {
     setChecklistDialogOpen(true);
   }

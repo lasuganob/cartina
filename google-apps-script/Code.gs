@@ -48,6 +48,41 @@ function doGet(e) {
       });
     }
 
+    if (path === "/trips/next-id") {
+      return jsonResponse_({
+        success: true,
+        next_id: getNextTripId_(),
+      });
+    }
+
+    if (path === "/trip-checklist/next-ids") {
+      return jsonResponse_({
+        success: true,
+        ids: getNextTripChecklistIds_(e),
+      });
+    }
+
+    if (path === "/stores") {
+      return jsonResponse_({
+        success: true,
+        items: getStores_(),
+      });
+    }
+
+    if (path === "/categories") {
+      return jsonResponse_({
+        success: true,
+        items: getCategories_(),
+      });
+    }
+
+    if (path === "/inventory-items") {
+      return jsonResponse_({
+        success: true,
+        items: getInventoryItems_(),
+      });
+    }
+
     return jsonResponse_({ success: false, message: "Route not found." });
   } catch (error) {
     return jsonResponse_({ success: false, message: error.message });
@@ -165,6 +200,47 @@ function getTrips_() {
     });
     return item;
   });
+}
+
+function getNextTripId_() {
+  const sheet = getOrCreateSheet_(SHEET_NAMES.trips, TRIP_HEADERS);
+  const values = sheet.getDataRange().getValues();
+  return getNextNumericId_(values, TRIP_HEADERS);
+}
+
+function getNextTripChecklistIds_(e) {
+  const requestedCount = Number((e && e.parameter && e.parameter.count) || 0);
+  const count = Math.max(0, Math.floor(requestedCount));
+
+  if (count === 0) {
+    return [];
+  }
+
+  const headers = [
+    "id",
+    "trip_id",
+    "inventory_item_id",
+    "item_name",
+    "quantity",
+    "planned_price",
+    "actual_price",
+    "is_purchased",
+    "is_unplanned",
+    "barcode",
+    "sort_order",
+    "created_at",
+  ];
+  const sheet = getOrCreateSheet_(SHEET_NAMES.tripChecklist, headers);
+  const values = sheet.getDataRange().getValues();
+  var nextId = getNextNumericId_(values, headers);
+  var ids = [];
+
+  for (var index = 0; index < count; index += 1) {
+    ids.push(nextId);
+    nextId += 1;
+  }
+
+  return ids;
 }
 
 function createTrip_(payload) {
@@ -331,7 +407,7 @@ function replaceTripChecklist_(payload) {
   }
 
   var normalizedItems = items.map(function (item, index) {
-    var resolvedId = normalizeNumericId_(item.id);
+    var resolvedId = normalizeRowId_(item.id);
     if (resolvedId === "") {
       resolvedId = nextId;
       nextId += 1;
@@ -663,14 +739,22 @@ function rewriteSheetBody_(sheet, headers, rows) {
 }
 
 function resolveRowId_(sheet, headers, candidateId) {
-  var normalizedId = normalizeNumericId_(candidateId);
-
+  var normalizedId = normalizeRowId_(candidateId);
   if (normalizedId !== "") {
     return normalizedId;
   }
 
   var values = sheet.getDataRange().getValues();
   return getNextNumericId_(values, headers);
+}
+
+function normalizeRowId_(value) {
+  if (value === "" || value == null) {
+    return "";
+  }
+
+  var trimmedValue = String(value).trim();
+  return trimmedValue === "" ? "" : trimmedValue;
 }
 
 function getNextNumericId_(values, headers) {

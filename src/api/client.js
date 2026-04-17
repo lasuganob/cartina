@@ -60,9 +60,28 @@ async function request(path, options = {}) {
 }
 
 export const apiClient = {
+  // --- READ (GET) ---
   getTrips() {
     return request('/trips');
   },
+  getNextTripId() {
+    return request('/trips/next-id');
+  },
+  getNextTripChecklistIds(count) {
+    return request('/trip-checklist/next-ids', {
+      params: { count }
+    });
+  },
+  getInventoryItems() {
+    return request('/inventory-items');
+  },
+  getStores() {
+    return request('/stores');
+  },
+  getCategories() {
+    return request('/categories');
+  },
+  // --- WRITE (POST) ---
   createTrip(payload) {
     return request('/trips', {
       method: 'POST',
@@ -94,6 +113,7 @@ export const apiClient = {
     });
   },
   replaceTripChecklist(payload) {
+    console.log('replaceTripChecklist', payload);
     return request('/trip-checklist/replace', {
       method: 'POST',
       body: payload

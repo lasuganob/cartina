@@ -1,5 +1,6 @@
 import { ThemeProvider } from '@mui/material/styles';
 import { Alert, Snackbar } from '@mui/material';
+import { useEffect } from 'react';
 import { useAppContext } from './context/AppContext';
 import { useThemeMode } from './hooks/useThemeMode';
 import { useOfflineSync } from './hooks/useOfflineSync';
@@ -7,8 +8,14 @@ import AppRouter from './router';
 
 export default function App() {
   const { theme } = useThemeMode();
-  const { snackbar, hideSnackbar } = useAppContext();
-  useOfflineSync();
+  const { snackbar, hideSnackbar, setSyncState } = useAppContext();
+  const sync = useOfflineSync();
+
+  // Bridge the hook values into context so layouts can read them
+  useEffect(() => {
+    setSyncState(sync);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sync.isOnline, sync.isSyncing, sync.lastSynced, sync.pendingCount, sync.syncError]);
 
   return (
     <ThemeProvider theme={theme}>

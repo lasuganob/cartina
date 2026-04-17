@@ -21,7 +21,9 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, queueMutation } from '../../../lib/db';
 import { useAppContext } from '../../../context/AppContext';
-import { processQueueIfOnline } from '../../../hooks/useOfflineSync';
+
+
+
 
 const PAGE_SIZE = 5;
 
@@ -64,7 +66,7 @@ export default function CategoriesManager() {
 
       await db.categories.put(categoryData);
       await queueMutation('categories', editingCategory ? 'update' : 'create', categoryData);
-      processQueueIfOnline();
+
       
       showSnackbar(`Category ${editingCategory ? 'updated' : 'added'} successfully`, 'success');
       setPanelOpen(false);
@@ -78,7 +80,7 @@ export default function CategoriesManager() {
       try {
         await db.categories.delete(id);
         await queueMutation('categories', 'delete', { id });
-        processQueueIfOnline();
+
         showSnackbar('Category deleted', 'success');
       } catch (error) {
         showSnackbar('Error deleting category', 'error');

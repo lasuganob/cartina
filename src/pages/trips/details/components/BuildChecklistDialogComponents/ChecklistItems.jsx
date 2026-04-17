@@ -49,7 +49,7 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
           ) : (
             <Stack spacing={2}>
               {draftItems.map((item, index) => (
-                <Card key={item.id || `${item.item_name}-${index}`} variant="outlined" sx={{ borderRadius: 1.5 }}>
+                <Card key={item.draft_key || item.id || `${item.item_name}-${index}`} variant="outlined" sx={{ borderRadius: 1.5 }}>
                   <CardContent sx={{ p: isMobile ? 1.5 : 2 }}>
                     <Stack spacing={2}>
                       <Stack

@@ -25,6 +25,7 @@ import { useState, useMemo, useEffect } from 'react';
 function buildDraftItem(item, index) {
   return {
     id: item.id,
+    draft_key: item.draft_key || item.id || `draft-${index}-${item.item_name || 'item'}`,
     trip_id: item.trip_id,
     item_name: item.item_name || item.inventory_item?.name || '',
     inventory_item_id: item.inventory_item_id || '',
@@ -183,7 +184,7 @@ export default function BuildChecklistDialog({ open, trip, busy, onClose, onSave
       ...current,
       {
         ...candidate,
-        id: crypto.randomUUID(),
+        draft_key: `draft-${Date.now()}-${current.length}`,
         sort_order: current.length
       }
     ]);

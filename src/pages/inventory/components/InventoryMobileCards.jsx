@@ -16,7 +16,7 @@ export default function InventoryMobileCards({ rows, onOpenEdit }) {
             <CardContent sx={{ py: 1.5, px: 2 }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <Stack spacing={0.5} minWidth={0}>
-                  <Typography variant="body1" fontWeight={700} noWrap>
+                  <Typography variant="subtitle2" fontWeight={700} mr={1} noWrap>
                     {item.name}
                   </Typography>
                   <Stack direction="row" spacing={1} alignItems="center">
