@@ -34,15 +34,15 @@ export default function BudgetRunningTotal({ trip, plannedTotal, remainingBudget
           <Stack
             direction={{ xs: 'column', md: 'row' }}
             justifyContent="space-between"
-            spacing={2}
+            spacing={1}
             alignItems={{ xs: 'flex-start', md: 'center' }}
           >
-            <div>
+            <Stack>
               <Typography variant="h6">Budget Running Total</Typography>
               <Typography variant="body2" color="text.secondary">
                 Planned total updates as you edit the checklist.
               </Typography>
-            </div>
+            </Stack>
             <Stack
               display="grid"
               gridTemplateColumns={{ xs: 'repeat(2, 1fr)' }}
@@ -65,7 +65,7 @@ export default function BudgetRunningTotal({ trip, plannedTotal, remainingBudget
             <LinearProgress
               variant="determinate"
               value={remainingBudgetPercentage}
-              sx={{ height: 10, mb: 0.5, borderRadius: 2 }}
+              sx={{ height: 10, mb: 0.5, borderRadius: 1 }}
             />
             <Stack direction="row" justifyContent="space-between">
                 <Typography variant="body2" color="text.secondary">

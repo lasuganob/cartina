@@ -1,31 +1,160 @@
-import { Button, Card, CardContent, Grid, IconButton, InputAdornment, Stack, TextField, Typography } from '@mui/material';
+import {
+  Box,
+  Button,
+  IconButton,
+  InputAdornment,
+  Stack,
+  SwipeableDrawer,
+  TextField,
+  Typography,
+} from '@mui/material';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded';
+import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import QrCodeScannerRoundedIcon from '@mui/icons-material/QrCodeScannerRounded';
+import InventoryRoundedIcon from '@mui/icons-material/InventoryRounded';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
+import Alert from '@mui/material/Alert';
+import MenuItem from '@mui/material/MenuItem';
+import { formatCurrency } from '../../../../utils/formatCurrency';
+import { db, queueMutation } from '../../../../lib/db';
+import { processQueueIfOnline } from '../../../../hooks/useOfflineSync';
+import { useState } from 'react';
 
 export default function UnplannedItemForm({
   unplannedDraft,
   setUnplannedDraft,
   handleAddUnplannedItem,
   setShowUnplannedForm,
-  onScanClick
+  onScanClick,
+  scannerStatus,
+  categories,
 }) {
+  const [step, setStep] = useState('form'); // 'form' | 'ask_inventory' | 'category'
+  const [categoryId, setCategoryId] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const lineSubtotal = Number(unplannedDraft.actual_price || 0) * Number(unplannedDraft.quantity || 1);
+
+  const handleClose = () => {
+    setShowUnplannedForm(false);
+    setUnplannedDraft({ item_name: '', quantity: 1, actual_price: '', barcode: '' });
+    setStep('form');
+  };
+
+  const updateDraft = (changes) => {
+    setUnplannedDraft((prev) => ({ ...prev, ...changes }));
+  };
+
+  const onAddClick = async () => {
+    // If there is no barcode, just add to checklist
+    if (!unplannedDraft.barcode) {
+      handleAddUnplannedItem();
+      return;
+    }
+
+    // Check if barcode exists in inventory
+    setBusy(true);
+    try {
+      const existing = await db.inventoryItems.where('barcode').equals(unplannedDraft.barcode).first();
+      if (existing) {
+        // Find category name
+        const category = categories.find(c => c.id === existing.category_id);
+        handleAddUnplannedItem({ ...existing, category });
+      } else {
+        setStep('ask_inventory');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSaveToInventory = async () => {
+    setBusy(true);
+    try {
+      const selectedCategory = categories.find(c => c.id === categoryId);
+      const newItem = {
+        id: crypto.randomUUID(),
+        name: unplannedDraft.item_name.trim(),
+        barcode: unplannedDraft.barcode.trim(),
+        category_id: categoryId,
+        usual_price: Number(unplannedDraft.actual_price || 0),
+        created_at: new Date().toISOString(),
+      };
+
+      await db.inventoryItems.put(newItem);
+      await queueMutation('inventoryItems', 'create', newItem);
+      await processQueueIfOnline();
+      
+      handleAddUnplannedItem({ ...newItem, category: selectedCategory });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <Card variant="outlined" sx={{ borderStyle: 'dashed' }}>
-      <CardContent>
-        <Stack spacing={1.5}>
-          <Typography variant="subtitle1">New Unplanned Item</Typography>
-          <Grid container spacing={1.5}>
-            <Grid size={{ xs: 12 }}>
+    <SwipeableDrawer
+      anchor="bottom"
+      open={true}
+      onOpen={() => setShowUnplannedForm(true)}
+      onClose={handleClose}
+      disableSwipeToOpen
+      PaperProps={{
+        sx: {
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
+          maxWidth: 600,
+          mx: 'auto',
+          width: '100%',
+        },
+      }}
+    >
+      {/* Drag handle */}
+      <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1.5, pb: 0.5 }}>
+        <Box sx={{ width: 40, height: 4, borderRadius: 1, bgcolor: 'divider' }} />
+      </Box>
+
+      <Box sx={{ px: 2.5, pb: 4, pt: 1 }}>
+        {scannerStatus === 'not_found' && step === 'form' && (
+          <Alert severity="info" sx={{ mb: 2, borderRadius: 1 }}>
+            Not in Checklist
+          </Alert>
+        )}
+
+        {step === 'form' && (
+          <>
+            {/* Header */}
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+              sx={{
+                backgroundColor: 'background.default',
+                borderRadius: 1,
+                p: 1.5,
+                mb: 2,
+              }}
+            >
+              <Stack>
+                <Typography variant="subtitle2" fontWeight={700}>
+                  New Unplanned Item
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
+                  Added during shopping
+                </Typography>
+              </Stack>
+            </Stack>
+
+            {/* Editable fields */}
+            <Stack spacing={2}>
+              {/* Barcode */}
               <TextField
                 fullWidth
-                label="Barcode"
+                label="Barcode (Optional)"
+                size="small"
                 value={unplannedDraft.barcode || ''}
                 placeholder="Scan or enter manually"
-                onChange={(event) =>
-                  setUnplannedDraft((current) => ({
-                    ...current,
-                    barcode: event.target.value
-                  }))
-                }
+                onChange={(e) => updateDraft({ barcode: e.target.value })}
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">
@@ -33,74 +162,223 @@ export default function UnplannedItemForm({
                         <QrCodeScannerRoundedIcon />
                       </IconButton>
                     </InputAdornment>
-                  )
+                  ),
                 }}
               />
-            </Grid>
-            <Grid size={{ xs: 12 }}>
+
+              {/* Name */}
               <TextField
                 fullWidth
                 label="Name"
+                size="small"
                 value={unplannedDraft.item_name}
-                onChange={(event) =>
-                  setUnplannedDraft((current) => ({
-                    ...current,
-                    item_name: event.target.value
-                  }))
-                }
+                onChange={(e) => updateDraft({ item_name: e.target.value })}
               />
-            </Grid>
-            <Grid size={{ xs: 4 }}>
-              <TextField
+
+              <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mr: 2 }}>
+                  <IconButton
+                    size="small"
+                    onClick={() => updateDraft({ quantity: Math.max(1, unplannedDraft.quantity - 1) })}
+                    sx={{
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 1,
+                      width: 30,
+                      height: 30,
+                    }}
+                  >
+                    <RemoveRoundedIcon fontSize="small" />
+                  </IconButton>
+                  <Typography variant="body1" fontWeight={700} minWidth={28} textAlign="center">
+                    {unplannedDraft.quantity}
+                  </Typography>
+                  <IconButton
+                    size="small"
+                    onClick={() => updateDraft({ quantity: unplannedDraft.quantity + 1 })}
+                    sx={{
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 1,
+                      width: 30,
+                      height: 30,
+                    }}
+                  >
+                    <AddRoundedIcon fontSize="small" />
+                  </IconButton>
+                </Stack>
+
+                {/* Price */}
+                <TextField
+                  label="Price"
+                  size="small"
+                  type="number"
+                  value={unplannedDraft.actual_price}
+                  onChange={(e) => updateDraft({ actual_price: e.target.value })}
+                  inputProps={{ min: 0, step: '0.01' }}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">₱</InputAdornment>,
+                  }}
+                />
+              </Stack>
+
+              {/* Subtotal */}
+              <Stack
+                direction="row"
+                justifyContent="space-between"
+                alignItems="center"
+                sx={{
+                  bgcolor: 'action.hover',
+                  borderRadius: 1,
+                  px: 2,
+                  py: 1.25,
+                }}
+              >
+                <Typography variant="subtitle1" color="text.secondary">
+                  Subtotal
+                </Typography>
+                <Typography variant="subtitle1" fontWeight={700}>
+                  {formatCurrency(lineSubtotal)}
+                </Typography>
+              </Stack>
+            </Stack>
+
+            {/* Action buttons */}
+            <Stack spacing={1.5} mt={3}>
+              <Button
                 fullWidth
-                label="Quantity"
-                type="number"
-                value={unplannedDraft.quantity}
-                onChange={(event) =>
-                  setUnplannedDraft((current) => ({
-                    ...current,
-                    quantity: Math.max(1, Number(event.target.value || 1))
-                  }))
-                }
-                inputProps={{ min: 1 }}
-              />
-            </Grid>
-            <Grid size={{ xs: 8 }}>
-              <TextField
+                variant="contained"
+                color="primary"
+                size="large"
+                startIcon={<AddRoundedIcon />}
+                onClick={onAddClick}
+                disabled={busy || !unplannedDraft.item_name.trim() || !unplannedDraft.actual_price}
+                sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
+              >
+                Add Item
+              </Button>
+              <Button
                 fullWidth
-                label="Price"
-                type="number"
-                value={unplannedDraft.actual_price}
-                onChange={(event) =>
-                  setUnplannedDraft((current) => ({
-                    ...current,
-                    actual_price: event.target.value
-                  }))
-                }
-                inputProps={{ min: 0, step: '0.01' }}
-              />
-            </Grid>
-          </Grid>
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant="contained"
-              onClick={handleAddUnplannedItem}
-              disabled={!unplannedDraft.item_name.trim() || !unplannedDraft.actual_price}
-            >
-              Add Item
-            </Button>
-            <Button
-              variant="text"
-              onClick={() => {
-                setShowUnplannedForm(false);
-                setUnplannedDraft({ item_name: '', quantity: 1, actual_price: '', barcode: '' });
-              }}
-            >
-              Cancel
-            </Button>
+                variant="outlined"
+                color="inherit"
+                size="large"
+                startIcon={<CancelRoundedIcon />}
+                onClick={handleClose}
+                disabled={busy}
+                sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
+              >
+                Cancel
+              </Button>
+            </Stack>
+          </>
+        )}
+
+        {step === 'ask_inventory' && (
+          <Stack spacing={3} py={2}>
+            <Stack spacing={1} alignItems="center" textAlign="center">
+              <Box
+                sx={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: '50%',
+                  bgcolor: 'primary.light',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mb: 1,
+                }}
+              >
+                <InventoryRoundedIcon color="primary" sx={{ fontSize: 32 }} />
+              </Box>
+              <Typography variant="h6" fontWeight={700}>
+                Add to Inventory?
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                This barcode is not in your catalog. Would you like to save it for future trips?
+              </Typography>
+            </Stack>
+
+            <Stack spacing={1.5}>
+              <Button
+                fullWidth
+                variant="contained"
+                color="primary"
+                size="large"
+                onClick={() => setStep('category')}
+                sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
+              >
+                Yes, Save to Inventory
+              </Button>
+              <Button
+                fullWidth
+                variant="outlined"
+                color="inherit"
+                size="large"
+                onClick={handleAddUnplannedItem}
+                disabled={busy}
+                sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
+              >
+                No, Just Add to Checklist
+              </Button>
+            </Stack>
           </Stack>
-        </Stack>
-      </CardContent>
-    </Card>
+        )}
+
+        {step === 'category' && (
+          <Stack spacing={3} py={2}>
+            <Stack spacing={1}>
+              <Typography variant="subtitle1" fontWeight={700}>
+                Select Category
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Which category does "{unplannedDraft.item_name}" belong to?
+              </Typography>
+            </Stack>
+
+            <TextField
+              select
+              fullWidth
+              label="Category"
+              size="small"
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              required
+            >
+              {categories.map((cat) => (
+                <MenuItem key={cat.id} value={cat.id}>
+                  {cat.name}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <Stack spacing={1.5}>
+              <Button
+                fullWidth
+                variant="contained"
+                color="primary"
+                size="large"
+                startIcon={<ArrowForwardRoundedIcon />}
+                onClick={handleSaveToInventory}
+                disabled={busy || !categoryId}
+                sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
+              >
+                {busy ? 'Saving...' : 'Save & Add Item'}
+              </Button>
+              <Button
+                fullWidth
+                variant="outlined"
+                color="inherit"
+                size="large"
+                onClick={() => setStep('ask_inventory')}
+                disabled={busy}
+                sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
+              >
+                Back
+              </Button>
+            </Stack>
+          </Stack>
+        )}
+      </Box>
+    </SwipeableDrawer>
   );
 }

@@ -43,6 +43,7 @@ export default function BarcodeScannerDialog({ open, onClose, onScanSuccess, var
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isDesktop, setIsDesktop] = useState(false);
+  const rootRef = useRef(null);
   const videoRef = useRef(null);
   const readerRef = useRef(null);
   const controlsRef = useRef(null);
@@ -50,6 +51,17 @@ export default function BarcodeScannerDialog({ open, onClose, onScanSuccess, var
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  useEffect(() => {
+    if (open && variant === 'inline' && rootRef.current) {
+      // Small delay to ensure the layout has shifted
+      const timer = setTimeout(() => {
+        rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [open, variant]);
 
   useEffect(() => {
     setIsDesktop(!mobileDevicePattern.test(navigator.userAgent));
@@ -189,7 +201,8 @@ export default function BarcodeScannerDialog({ open, onClose, onScanSuccess, var
           overflow: 'hidden',
           borderRadius: 2,
           bgcolor: 'black',
-          minHeight: 320,
+          minHeight: 240,
+          aspectRatio: '4 / 3',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -204,7 +217,9 @@ export default function BarcodeScannerDialog({ open, onClose, onScanSuccess, var
           playsInline
           sx={{
             width: '100%',
-            minHeight: 320,
+            height: '100%',
+            minHeight: 240,
+            aspectRatio: '4 / 3',
             display: 'block',
             objectFit: 'cover',
             bgcolor: 'black'
@@ -230,12 +245,12 @@ export default function BarcodeScannerDialog({ open, onClose, onScanSuccess, var
 
   if (variant === 'inline') {
     return (
-      <Card variant="outlined">
+      <Card ref={rootRef} variant="outlined" sx={{ mb: 2 }}>
         <CardContent>
           <Stack spacing={2}>
             <Stack direction="row" alignItems="center" justifyContent="space-between">
               <Typography variant="h6">Scan Barcode</Typography>
-              <Button onClick={onClose}>Close Scanner</Button>
+              <Button onClick={onClose} sx={{ fontSize: '12px' }}>Close</Button>
             </Stack>
             {scannerBody}
           </Stack>

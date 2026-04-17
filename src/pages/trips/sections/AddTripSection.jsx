@@ -63,11 +63,11 @@ export default function AddTripSection({ onSubmit }) {
   return (
     <Card>
       <CardContent>
-        <Typography variant="h6" sx={{ mb: 2 }}>
+        <Typography variant="body1" sx={{ fontWeight: 700, mb: 1 }}>
           Add Trip
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          New trips are written to IndexedDB immediately and synced to Google Apps Script later.
+        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px', mb: 2 }}>
+          New trips are written to IndexedDB immediately and synced later.
         </Typography>
         <Stack component="form" spacing={2} onSubmit={handleSubmit}>
           <TextField
@@ -102,7 +102,7 @@ export default function AddTripSection({ onSubmit }) {
           {Object.keys(errors).length > 0 ? (
             <Alert severity="error">Please fix the form errors before saving.</Alert>
           ) : null}
-          <Button type="submit" variant="contained" disabled={isSubmitting}>
+          <Button type="submit" variant="contained" disabled={isSubmitting} sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}>
             {isSubmitting ? 'Saving...' : 'Save Trip'}
           </Button>
         </Stack>

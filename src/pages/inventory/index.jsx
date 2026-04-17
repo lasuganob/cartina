@@ -237,7 +237,12 @@ export default function InventoryPage() {
         description="Manage reusable grocery items and their usual prices."
         action={
           dialogOpen ? null : (
-            <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={handleOpenAddDialog}>
+            <Button
+              variant="contained"
+              startIcon={<AddRoundedIcon />}
+              onClick={handleOpenAddDialog}
+              sx={{ borderRadius: 1, fontSize: '12px' }}
+            >
               Add Item
             </Button>
           )
@@ -307,7 +312,7 @@ export default function InventoryPage() {
           ) : (
             <>
               {isMobile ? (
-                <InventoryMobileCards rows={paginatedRows} onOpenMenu={handleOpenMenu} />
+                <InventoryMobileCards rows={paginatedRows} onOpenEdit={handleOpenEditDialog} />
               ) : (
                 <InventoryTable rows={paginatedRows} onOpenMenu={handleOpenMenu} />
               )}

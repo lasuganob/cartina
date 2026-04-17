@@ -94,7 +94,6 @@ export const apiClient = {
     });
   },
   replaceTripChecklist(payload) {
-    console.log('payload', payload);
     return request('/trip-checklist/replace', {
       method: 'POST',
       body: payload

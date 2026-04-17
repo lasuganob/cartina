@@ -57,8 +57,10 @@ export default function ShoppingProgressNav({
       <Stack spacing={2}>
         <Stack spacing={1}>
           <Stack spacing={0.5}>
-            <Stack direction="row" justifyContent="space-between">
-              <Typography variant="h6">Shopping {isInProgress ? "In Progress" : "Paused"}</Typography>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Typography variant="subtitle2" fontWeight={700}>
+                Shopping {isInProgress ? 'In Progress' : 'Paused'}
+              </Typography>
               <IconButton
                 aria-label={actionsExpanded ? 'Collapse trip actions' : 'Expand trip actions'}
                 edge="end"
@@ -70,10 +72,10 @@ export default function ShoppingProgressNav({
             </Stack>
             <LinearProgress variant="determinate" value={metrics.progress} sx={{ height: 10, borderRadius: 999 }} />
             <Stack direction="row" justifyContent="space-between">
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
                 {formatCurrency(metrics.subtotal)} / {formatCurrency(trip.budget)}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
                 {Math.round(metrics.progress)}% checked
               </Typography>
             </Stack>
@@ -143,6 +145,7 @@ export default function ShoppingProgressNav({
                   onClick={handleCheckout}
                   disabled={busy || !draftItemsLength}
                   startIcon={<CheckCircleRoundedIcon />}
+                  sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
                 >
                   Checkout
                 </Button>
@@ -156,6 +159,7 @@ export default function ShoppingProgressNav({
                   startIcon={
                     isInProgress ? <PauseCircleRoundedIcon /> : <PlayCircleFilledWhiteRoundedIcon />
                   }
+                  sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
                 >
                   {isInProgress ? 'Pause' : 'Resume'}
                 </Button>

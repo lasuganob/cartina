@@ -1,62 +1,44 @@
 import {
   Card,
+  CardActionArea,
   CardContent,
-  IconButton,
   Stack,
   Typography,
-  Box,
-  Divider
 } from '@mui/material';
-import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import { formatCurrency } from '../../../utils/formatCurrency';
 
-export default function InventoryMobileCards({ rows, onOpenMenu }) {
+export default function InventoryMobileCards({ rows, onOpenEdit }) {
   return (
-    <Stack spacing={2}>
+    <Stack spacing={1}>
       {rows.map((item) => (
         <Card key={item.id} variant="outlined" sx={{ borderRadius: 1 }}>
-          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-              <Box sx={{ flexGrow: 1 }}>
-                <Typography variant="subtitle1" fontWeight="bold" sx={{ lineHeight: 1.2 }}>
-                  {item.name}
-                </Typography>
-                {item.barcode && (
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                    Code: {item.barcode}
+          <CardActionArea onClick={() => onOpenEdit(item)} sx={{ borderRadius: 1 }}>
+            <CardContent sx={{ py: 1.5, px: 2 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                <Stack spacing={0.5} minWidth={0}>
+                  <Typography variant="body1" fontWeight={700} noWrap>
+                    {item.name}
                   </Typography>
-                )}
-              </Box>
-              <IconButton 
-                size="small" 
-                onClick={(event) => onOpenMenu(event, item)}
-                sx={{ mt: -0.5, mr: -0.5 }}
-              >
-                <MoreVertRoundedIcon fontSize="small" />
-              </IconButton>
-            </Stack>
-            
-            <Divider sx={{ my: 1.5 }} />
-            
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>
-                  Category
-                </Typography>
-                <Typography variant="body2" fontWeight={500}>
-                  {item.category_name}
-                </Typography>
-              </Box>
-              <Box sx={{ textAlign: 'right' }}>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.65rem' }}>
-                  Usual Price
-                </Typography>
-                <Typography variant="body1" fontWeight="bold" color="primary">
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
+                      {item.category_name}
+                    </Typography>
+                    {item.barcode && (
+                      <>
+                        <Typography variant="caption" color="text.disabled">·</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
+                          {item.barcode}
+                        </Typography>
+                      </>
+                    )}
+                  </Stack>
+                </Stack>
+                <Typography variant="subtitle2" fontWeight={700} color="primary" sx={{ flexShrink: 0 }}>
                   {formatCurrency(item.usual_price)}
                 </Typography>
-              </Box>
-            </Stack>
-          </CardContent>
+              </Stack>
+            </CardContent>
+          </CardActionArea>
         </Card>
       ))}
     </Stack>

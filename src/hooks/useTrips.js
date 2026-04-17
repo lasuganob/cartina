@@ -202,7 +202,6 @@ export function useTrips() {
         }
         setError('');
       } catch (requestError) {
-        console.log(requestError);
         if (!cancelled) {
           setError(requestError.message);
         }

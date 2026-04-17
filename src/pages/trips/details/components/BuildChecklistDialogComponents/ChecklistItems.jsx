@@ -22,7 +22,7 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 2 }}>
+    <Card variant="outlined" sx={{ borderRadius: 1 }}>
       <CardContent sx={{ p: isMobile ? 1.5 : 2 }}>
         <Stack spacing={2}>
           <Stack
@@ -32,7 +32,7 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
             alignItems={{ xs: 'flex-start', sm: 'center' }}
           >
             <Stack>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>Checklist Items</Typography>
+              <Typography variant="body1" sx={{ fontWeight: 700 }}>Checklist Items</Typography>
               {!isMobile && (
                 <Typography variant="body2" color="text.secondary">
                   Manage quantities, spend, and purchase states.
@@ -59,7 +59,7 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
                         alignItems="flex-start"
                       >
                         <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: isMobile ? '0.9rem' : '1rem' }}>
+                          <Typography variant="body1" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
                             {item.item_name || item.inventory_item?.name || 'Untitled item'}
                           </Typography>
                           {item.inventory_item?.category ? (
@@ -73,22 +73,7 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
                       </Stack>
 
                       <Grid container spacing={1.5}>
-                        <Grid size={{ xs: 4, md: 2 }}>
-                          <TextField
-                            fullWidth
-                            label="Qty"
-                            type="number"
-                            value={item.quantity}
-                            onChange={(event) =>
-                              updateItem(index, {
-                                quantity: Math.max(1, Number(event.target.value || 1))
-                              })
-                            }
-                            inputProps={{ min: 1 }}
-                            size="small"
-                          />
-                        </Grid>
-                        <Grid size={{ xs: 8, md: 4 }}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                           <TextField
                             fullWidth
                             label="Item Name"
@@ -104,7 +89,22 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
                             size="small"
                           />
                         </Grid>
-                        <Grid size={{ xs: 6, md: 2 }}>
+                        <Grid size={{ xs: 3, md: 2 }}>
+                          <TextField
+                            fullWidth
+                            label="Qty"
+                            type="number"
+                            value={item.quantity}
+                            onChange={(event) =>
+                              updateItem(index, {
+                                quantity: Math.max(1, Number(event.target.value || 1))
+                              })
+                            }
+                            inputProps={{ min: 1 }}
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 9, md: 2 }}>
                           <TextField
                             fullWidth
                             label={isMobile ? "Planned" : "Planned Price"}
@@ -113,21 +113,6 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
                             onChange={(event) =>
                               updateItem(index, {
                                 planned_price: event.target.value
-                              })
-                            }
-                            inputProps={{ min: 0, step: '0.01' }}
-                            size="small"
-                          />
-                        </Grid>
-                        <Grid size={{ xs: 6, md: 2 }}>
-                          <TextField
-                            fullWidth
-                            label={isMobile ? "Actual" : "Actual Price"}
-                            type="number"
-                            value={item.actual_price}
-                            onChange={(event) =>
-                              updateItem(index, {
-                                actual_price: event.target.value
                               })
                             }
                             inputProps={{ min: 0, step: '0.01' }}

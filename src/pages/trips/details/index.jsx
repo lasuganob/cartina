@@ -110,7 +110,12 @@ export default function TripDetailsPage() {
         description={trip.note}
         action={
           <Stack direction="row" spacing={1} alignItems="center">
-            <Button component={NavLink} to="/trips" variant="contained">
+            <Button
+              component={NavLink}
+              to="/trips"
+              variant="contained"
+              sx={{ borderRadius: 1, fontSize: '12px', py: 1.25 }}
+            >
               Back to Trips
             </Button>
           </Stack>
@@ -128,32 +133,6 @@ export default function TripDetailsPage() {
           <Stack spacing={3}>
             <TripDetailsCard trip={trip} saving={busy} onSave={handleSaveDetails} />
             <ChecklistPreviewCard items={trip.items} onBuildChecklist={handleBuildChecklist} />
-          </Stack>
-        </Grid>
-        <Grid size={{ xs: 12, lg: 3 }}>
-          <Stack spacing={3}>
-            <BudgetSnapshotCard trip={trip} />
-            <Card>
-              <CardContent>
-                <Typography variant="h6" sx={{ mb: 2 }}>
-                  Trip Context
-                </Typography>
-                <Stack spacing={1.5}>
-                  <Typography variant="body2" color="text.secondary">
-                    Store: {trip.store?.name || 'Not assigned'}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Checklist items: {trip.items.length}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Purchased items: {trip.items.filter((item) => item.is_purchased).length}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Unplanned items: {trip.items.filter((item) => item.is_unplanned).length}
-                  </Typography>
-                </Stack>
-              </CardContent>
-            </Card>
           </Stack>
         </Grid>
       </Grid>

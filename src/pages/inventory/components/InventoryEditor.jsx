@@ -1,15 +1,17 @@
 import {
+  Box,
   Button,
-  Card,
-  CardContent,
   IconButton,
   InputAdornment,
   MenuItem,
   Stack,
+  SwipeableDrawer,
   TextField,
-  Typography
+  Typography,
 } from '@mui/material';
 import QrCodeScannerRoundedIcon from '@mui/icons-material/QrCodeScannerRounded';
+import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
+import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import BarcodeScannerDialog from '../../../components/BarcodeScannerDialog';
 
 export default function InventoryEditor({
@@ -23,38 +25,72 @@ export default function InventoryEditor({
   onClose,
   onChange,
   onSave,
-  onScanSuccess
+  onScanSuccess,
 }) {
   return (
-    <Card sx={{ mb: 3 }}>
-      <CardContent>
-        <Stack spacing={2}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              {editingItem ? 'Edit Item' : 'Add Item'}
+    <SwipeableDrawer
+      anchor="bottom"
+      open={true}
+      onOpen={() => {}}
+      onClose={onClose}
+      disableSwipeToOpen
+      PaperProps={{
+        sx: {
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
+          maxWidth: 600,
+          mx: 'auto',
+          width: '100%',
+        },
+      }}
+    >
+      {/* Drag handle */}
+      <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1.5, pb: 0.5 }}>
+        <Box sx={{ width: 40, height: 4, borderRadius: 1, bgcolor: 'divider' }} />
+      </Box>
+
+      <Box sx={{ px: 2.5, pb: 4, pt: 1 }}>
+        {/* Header */}
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          sx={{
+            backgroundColor: 'background.default',
+            borderRadius: 1,
+            p: 1.5,
+            mb: 2,
+          }}
+        >
+          <Stack>
+            <Typography variant="subtitle2" fontWeight={700}>
+              {editingItem ? 'Edit Inventory Item' : 'New Inventory Item'}
             </Typography>
-            <Button onClick={onClose} disabled={busy}>
-              Cancel
-            </Button>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
+              {editingItem ? 'Update product details' : 'Add basic product info'}
+            </Typography>
           </Stack>
-          
-          {scannerOpen ? (
+        </Stack>
+
+        <Stack spacing={2}>
+          {scannerOpen && (
             <BarcodeScannerDialog
               open={scannerOpen}
               onClose={() => setScannerOpen(false)}
               onScanSuccess={onScanSuccess}
               variant="inline"
             />
-          ) : null}
+          )}
 
           <TextField
+            fullWidth
             label="Barcode"
             name="barcode"
+            size="small"
             value={values.barcode}
             onChange={onChange}
             placeholder="Scan or enter manually"
             disabled={busy}
-            fullWidth
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
@@ -62,34 +98,35 @@ export default function InventoryEditor({
                     <QrCodeScannerRoundedIcon />
                   </IconButton>
                 </InputAdornment>
-              )
+              ),
             }}
-            size="small"
           />
+
           <TextField
+            fullWidth
             label="Name"
             name="name"
+            size="small"
             value={values.name}
             onChange={onChange}
             error={Boolean(errors.name)}
             helperText={errors.name}
             disabled={busy}
             required
-            fullWidth
-            size="small"
           />
+
           <TextField
             select
+            fullWidth
             label="Category"
             name="category_id"
+            size="small"
             value={values.category_id}
             onChange={onChange}
             error={Boolean(errors.category_id)}
             helperText={errors.category_id}
             disabled={busy}
             required
-            fullWidth
-            size="small"
           >
             {categories.map((category) => (
               <MenuItem key={category.id} value={category.id}>
@@ -97,9 +134,12 @@ export default function InventoryEditor({
               </MenuItem>
             ))}
           </TextField>
+
           <TextField
+            fullWidth
             label="Usual Price"
             name="usual_price"
+            size="small"
             type="number"
             value={values.usual_price}
             onChange={onChange}
@@ -107,24 +147,43 @@ export default function InventoryEditor({
             helperText={errors.usual_price}
             disabled={busy}
             required
-            fullWidth
-            slotProps={{
-              input: { inputProps: { min: 0, step: "0.01" } }
+            InputProps={{
+              startAdornment: <InputAdornment position="start">₱</InputAdornment>,
             }}
-            size="small"
+            slotProps={{
+              input: { inputProps: { min: 0, step: '0.01' } },
+            }}
           />
-          <Stack direction="row" justifyContent="flex-end">
-            <Button 
-              variant="contained" 
-              onClick={onSave} 
+
+          {/* Action buttons */}
+          <Stack spacing={1.5} mt={1}>
+            <Button
+              fullWidth
+              variant="contained"
+              color="primary"
+              size="large"
+              startIcon={<SaveRoundedIcon />}
+              onClick={onSave}
               disabled={busy}
-              sx={{ px: 4 }}
+              sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
             >
               {busy ? 'Processing...' : editingItem ? 'Save Changes' : 'Add Item'}
             </Button>
+            <Button
+              fullWidth
+              variant="outlined"
+              color="inherit"
+              size="large"
+              startIcon={<CancelRoundedIcon />}
+              onClick={onClose}
+              disabled={busy}
+              sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
+            >
+              Cancel
+            </Button>
           </Stack>
         </Stack>
-      </CardContent>
-    </Card>
+      </Box>
+    </SwipeableDrawer>
   );
 }

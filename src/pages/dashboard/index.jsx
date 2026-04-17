@@ -24,13 +24,14 @@ export default function DashboardPage() {
         <Grid size={{ xs: 12, lg: 5 }}>
           <Card sx={{ p: 2 }}>
             <Typography
-              variant="body"
+              variant="subtitle2"
               color="text.secondary"
               sx={{
                 textTransform: 'uppercase',
                 fontWeight: 'bold',
-                fontSize: '12px',
-                letterSpacing: '2px'
+                fontSize: '10px',
+                letterSpacing: '1px',
+                mb: 1
               }}
             >
               Trip Summary
@@ -38,8 +39,8 @@ export default function DashboardPage() {
 
             <Stack>
               <Stack>
-                <Typography variant="h6" sx={{ fontWeight: "bold", fontSize: "30px" }}>{formatCurrency(stats.totalBudget)}</Typography>
-                <Typography variant="body" sx={{ fontSize: "12px", color: "text.secondary", mt: -1 }}>Budget Allocated</Typography>
+                <Typography variant="h4" sx={{ fontWeight: "bold" }}>{formatCurrency(stats.totalBudget)}</Typography>
+                <Typography variant="body2" sx={{ fontSize: "12px", color: "text.secondary", mt: -0.5 }}>Budget Allocated</Typography>
               </Stack>
               <Grid container spacing={2} sx={{ mt: 1 }}>
                 <Grid size={{ xs: 6 }}>

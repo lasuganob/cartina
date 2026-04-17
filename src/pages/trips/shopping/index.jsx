@@ -1,30 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
-  Box,
   Button,
   Card,
   CardContent,
   Chip,
-  Divider,
   Grid,
-  IconButton,
   LinearProgress,
   Stack,
   Typography
 } from '@mui/material';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import PendingRoundedIcon from '@mui/icons-material/PendingRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import QrCodeScannerRoundedIcon from '@mui/icons-material/QrCodeScannerRounded';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
+import { useLiveQuery } from 'dexie-react-hooks';
 import PageHeader from '../../../components/PageHeader';
-import StatusChip from '../../../components/StatusChip';
 import BarcodeScannerDialog from '../../../components/BarcodeScannerDialog';
 import { useTrips } from '../../../hooks/useTrips';
-import { clearQueuedChecklistReplaces, db } from '../../../lib/db';
+import { clearQueuedChecklistReplaces, db, queueMutation } from '../../../lib/db';
+import { processQueueIfOnline } from '../../../hooks/useOfflineSync';
 import { useBarcodeLookup } from '../../../hooks/useBarcodeLookup';
 
 import ShoppingItemCard from './components/ShoppingItemCard';
-import TripContextCard from './components/TripContextCard';
 import UnplannedItemForm from './components/UnplannedItemForm';
 import ShoppingProgressNav from './components/ShoppingProgressNav';
 
@@ -92,6 +91,8 @@ export default function TripShoppingPage() {
   const [unplannedDraft, setUnplannedDraft] = useState({ item_name: '', quantity: 1, actual_price: '', barcode: '' });
   const [showUnplannedForm, setShowUnplannedForm] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [activeItemId, setActiveItemId] = useState(null);
+  const [scannerStatus, setScannerStatus] = useState(null);
   const [actionsExpanded, setActionsExpanded] = useState(true);
   const [tick, setTick] = useState(Date.now());
   const [sessionState, setSessionState] = useState({
@@ -101,6 +102,7 @@ export default function TripShoppingPage() {
     startedAt: ''
   });
   const { lookup } = useBarcodeLookup();
+  const categories = useLiveQuery(() => db.categories.orderBy('name').toArray(), []) || [];
   const persistRef = useRef({
     draftItems: [],
     sessionState: null,
@@ -272,7 +274,7 @@ export default function TripShoppingPage() {
     );
   }
 
-  function handleAddUnplannedItem() {
+  function handleAddUnplannedItem(inventoryItem = null) {
     const newItem = normalizeDraftItem(
       {
         id: crypto.randomUUID(),
@@ -282,6 +284,8 @@ export default function TripShoppingPage() {
         barcode: unplannedDraft.barcode || '',
         planned_price: '',
         actual_price: unplannedDraft.actual_price,
+        inventory_item_id: inventoryItem?.id || '',
+        inventory_item: inventoryItem,
         is_purchased: unplannedDraft.actual_price !== '',
         is_unplanned: true,
         sort_order: -1,
@@ -301,10 +305,12 @@ export default function TripShoppingPage() {
 
   const handleScanSuccess = useCallback(async (barcode) => {
     // 1. Search in current draft items for a match
-    const existingIndex = draftItems.findIndex((item) => item.barcode == barcode);
+    const existingIndex = draftItems.findIndex((item) => String(item.barcode) == String(barcode));
     if (existingIndex !== -1) {
-      // Auto-check the item
+      const item = draftItems[existingIndex];
       handleUpdateItem(existingIndex, { is_purchased: true });
+      setActiveItemId(item.id);
+      setScannerStatus('found');
       return;
     }
 
@@ -318,6 +324,7 @@ export default function TripShoppingPage() {
         actual_price: productInfo?.price ? String(productInfo.price) : '',
         barcode: barcode
       });
+      setScannerStatus('not_found');
       setShowUnplannedForm(true);
     } finally {
       setBusy(false);
@@ -400,112 +407,158 @@ export default function TripShoppingPage() {
 
   return (
     <>
-      <PageHeader
-        eyebrow={<StatusChip status={trip.status} />}
-        title={`${trip.name} Shopping`}
-        description={trip.store?.name ? `Shopping at ${trip.store.name}` : 'Track actual spend while shopping.'}
-        action={
-          <Button component={NavLink} to={`/trips/${trip.id}`} variant="outlined">
-            Back to Trip
-          </Button>
-        }
-      />
-
       {error ? (
         <Alert severity="warning" sx={{ mb: 3 }}>
           Failed to refresh from GAS. Showing cached IndexedDB data.
         </Alert>
       ) : null}
 
+      <Typography variant="body1" fontWeight={700}>Shopping Checklist</Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
+        Check items as you shop and capture the actual line price.
+      </Typography>
+
+      <Stack direction="row" spacing={1.5} sx={{ my: 2 }} justifyContent="space-between">
+        <Button
+          variant="outlined"
+          color="primary"
+          startIcon={<QrCodeScannerRoundedIcon />}
+          onClick={() => setScannerOpen(true)}
+          sx={{ fontSize: '12px', py: 1.5, flex: 1 }}
+        >
+          Scan Barcode
+        </Button>
+        <Button
+          variant={showUnplannedForm ? 'outlined' : 'contained'}
+          startIcon={<AddRoundedIcon />}
+          onClick={() => setShowUnplannedForm((current) => !current)}
+          sx={{ fontSize: '12px', py: 1.5, flex: 1 }}
+        >
+          Add Unplanned
+        </Button>
+      </Stack>
+
+      {scannerOpen ? (
+        <BarcodeScannerDialog
+          open={scannerOpen}
+          onClose={handleCloseScanner}
+          onScanSuccess={handleScanSuccess}
+          variant="inline"
+        />
+      ) : null}
+
+      {showUnplannedForm ? (
+        <UnplannedItemForm
+          unplannedDraft={unplannedDraft}
+          setUnplannedDraft={setUnplannedDraft}
+          handleAddUnplannedItem={handleAddUnplannedItem}
+          setShowUnplannedForm={setShowUnplannedForm}
+          onScanClick={() => setScannerOpen(true)}
+          scannerStatus={scannerStatus}
+          categories={categories}
+        />
+      ) : null}
+
       <Grid container spacing={3} sx={{ pb: 18 }}>
         <Grid size={{ xs: 12, lg: 8 }}>
           <Stack spacing={2}>
-            <Card>
-              <CardContent>
-                <Stack spacing={2}>
-                  <Stack
-                    direction={{ xs: 'column', sm: 'row' }}
-                    justifyContent="space-between"
-                    spacing={1.5}
-                  >
-                    <Stack spacing={0.5}>
-                      <Typography variant="h6">Shopping Checklist</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Check items as you shop and capture the actual line price.
-                      </Typography>
-                    </Stack>
-                    <Chip label={`${draftItems.length} item${draftItems.length === 1 ? '' : 's'}`} variant="outlined" />
-                  </Stack>
-
-                  <Stack direction="row" spacing={1.5}>
-                    <Button
-                      variant={showUnplannedForm ? 'outlined' : 'contained'}
-                      startIcon={<AddRoundedIcon />}
-                      onClick={() => setShowUnplannedForm((current) => !current)}
-                    >
-                      Add Unplanned Item
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      color="primary"
-                      startIcon={<QrCodeScannerRoundedIcon />}
-                      onClick={() => setScannerOpen(true)}
-                    >
-                      Scan Barcode
+            {!draftItems.length ? (
+              <Card>
+                <CardContent>
+                  <Stack spacing={1} alignItems="flex-start">
+                    <Typography color="text.secondary">
+                      No checklist items yet. Build the trip checklist first.
+                    </Typography>
+                    <Button component={NavLink} to={`/trips/${trip.id}`} variant="outlined">
+                      Go to Trip Details
                     </Button>
                   </Stack>
-                  
-                  {scannerOpen ? (
-                    <BarcodeScannerDialog
-                      open={scannerOpen}
-                      onClose={handleCloseScanner}
-                      onScanSuccess={handleScanSuccess}
-                      variant="inline"
-                    />
-                  ) : null}
-
-                  {showUnplannedForm ? (
-                    <UnplannedItemForm
-                      unplannedDraft={unplannedDraft}
-                      setUnplannedDraft={setUnplannedDraft}
-                      handleAddUnplannedItem={handleAddUnplannedItem}
-                      setShowUnplannedForm={setShowUnplannedForm}
-                      onScanClick={() => setScannerOpen(true)}
-                    />
-                  ) : null}
-
-                  <Divider />
-
-                  {!draftItems.length ? (
-                    <Stack spacing={1} alignItems="flex-start">
-                      <Typography color="text.secondary">
-                        No checklist items yet. Build the trip checklist first.
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* ── Pending section ── */}
+                {draftItems.filter((item) => !item.is_purchased).length > 0 && (
+                  <Stack spacing={1.5}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <PendingRoundedIcon fontSize="small" color="action" />
+                      <Typography variant="overline" color="text.secondary" lineHeight={1}>
+                        Pending
                       </Typography>
-                      <Button component={NavLink} to={`/trips/${trip.id}`} variant="outlined">
-                        Go to Trip Details
-                      </Button>
+                      <Chip
+                        label={draftItems.filter((i) => !i.is_purchased).length}
+                        size="small"
+                        variant="outlined"
+                      />
                     </Stack>
-                  ) : (
-                    <Stack spacing={2}>
-                      {draftItems.map((item, index) => (
-                        <ShoppingItemCard
-                          key={item.id}
-                          item={item}
-                          index={index}
-                          onChange={(changes) => handleUpdateItem(index, changes)}
-                        />
-                      ))}
+                    <Stack spacing={1}>
+                      {draftItems
+                        .map((item, index) => ({ item, index }))
+                        .filter(({ item }) => !item.is_purchased)
+                        .map(({ item, index }) => (
+                          <ShoppingItemCard
+                            key={item.id}
+                            item={item}
+                            index={index}
+                            onChange={(changes) => handleUpdateItem(index, changes)}
+                            open={activeItemId === item.id}
+                            onOpen={() => {
+                              setActiveItemId(item.id);
+                              setScannerStatus(null);
+                            }}
+                            onClose={() => {
+                              setActiveItemId(null);
+                              setScannerStatus(null);
+                            }}
+                            scannerStatus={activeItemId === item.id ? scannerStatus : null}
+                          />
+                        ))}
                     </Stack>
-                  )}
-                </Stack>
-              </CardContent>
-            </Card>
-          </Stack>
-        </Grid>
+                  </Stack>
+                )}
 
-        <Grid size={{ xs: 12, lg: 4 }}>
-          <Stack spacing={2}>
-            <TripContextCard trip={trip} metrics={metrics} />
+                {/* ── Purchased section ── */}
+                {draftItems.filter((item) => item.is_purchased).length > 0 && (
+                  <Stack spacing={1.5}>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <CheckCircleRoundedIcon fontSize="small" color="success" />
+                      <Typography variant="overline" color="text.secondary" lineHeight={1}>
+                        Purchased
+                      </Typography>
+                      <Chip
+                        label={draftItems.filter((i) => i.is_purchased).length}
+                        size="small"
+                        color="success"
+                        variant="outlined"
+                      />
+                    </Stack>
+                    <Stack spacing={1}>
+                      {draftItems
+                        .map((item, index) => ({ item, index }))
+                        .filter(({ item }) => item.is_purchased)
+                        .map(({ item, index }) => (
+                          <ShoppingItemCard
+                            key={item.id}
+                            item={item}
+                            index={index}
+                            onChange={(changes) => handleUpdateItem(index, changes)}
+                            open={activeItemId === item.id}
+                            onOpen={() => {
+                              setActiveItemId(item.id);
+                              setScannerStatus(null);
+                            }}
+                            onClose={() => {
+                              setActiveItemId(null);
+                              setScannerStatus(null);
+                            }}
+                            scannerStatus={activeItemId === item.id ? scannerStatus : null}
+                          />
+                        ))}
+                    </Stack>
+                  </Stack>
+                )}
+              </>
+            )}
           </Stack>
         </Grid>
       </Grid>

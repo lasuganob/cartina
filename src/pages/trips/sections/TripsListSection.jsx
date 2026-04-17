@@ -69,15 +69,15 @@ export default function TripsListSection({ trips, loading, error }) {
   return (
     <Card sx={{ width: '100%' }}>
       <CardContent>
-        <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'flex-end', justifyContent: 'space-between' }}>
-          <Typography variant="h6" sx={{ mb: 1 }}>
+        <Stack direction="row" spacing={1} sx={{ mb: 1.5, alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="body1" fontWeight={700}>
             Trips
           </Typography>
           <Button
             variant="contained"
             component={NavLink}
             to="/trips/new"
-            sx={{ mb: 2, padding: '10px 50px'}}
+            sx={{ borderRadius: 1, py: 1.5, px: 4, fontSize: '12px' }}
           >
             + Add Trip
           </Button>

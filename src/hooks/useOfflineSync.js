@@ -193,7 +193,6 @@ export async function processQueue() {
   if (inFlightQueueSync) {
     return inFlightQueueSync;
   }
-  console.log('syncing...');
 
   inFlightQueueSync = (async () => {
     const pendingItems = await db.syncQueue.where('status').equals('pending').toArray();
@@ -229,7 +228,6 @@ export async function processQueue() {
 
         await db.syncQueue.update(item.id, { status: 'synced' });
       } catch (error) {
-        console.log('error', error);
         await db.syncQueue.update(item.id, { status: 'failed', error: error.message });
       }
     }

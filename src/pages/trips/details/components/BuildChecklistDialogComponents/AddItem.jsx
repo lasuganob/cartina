@@ -15,7 +15,7 @@ export default function AddItem({ inventoryData, addDraft, setAddDraft, handleAd
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 2 }}>
+    <Card variant="outlined" sx={{ borderRadius: 1 }}>
       <CardContent sx={{ p: isMobile ? 1.5 : 2 }}>
         <Stack spacing={2}>
           <Stack>
@@ -123,7 +123,7 @@ export default function AddItem({ inventoryData, addDraft, setAddDraft, handleAd
                 sx={{ 
                   height: 40, 
                   minWidth: { md: 40 },
-                  borderRadius: 1.5,
+                  borderRadius: 1,
                   p: { md: 0 } 
                 }}
               >

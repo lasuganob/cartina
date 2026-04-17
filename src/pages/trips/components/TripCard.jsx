@@ -78,22 +78,29 @@ export default function TripCard({ trip }) {
 
       <CardContent>
         <Box sx={{ pr: 4 }}>
-          <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-            <Typography variant="subtitle1" fontWeight="bold" sx={{ mr: 1 }}>{trip.name}</Typography>
+          <Stack direction="row" spacing={1} sx={{ mb: 0.5, alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+            <Typography variant="body1" fontWeight="bold">
+              {trip.name}
+            </Typography>
             <StatusChip status={trip.status} />
           </Stack>
-          <Typography variant="body2" color="text.secondary">
-            Planned for: {formatDate(trip.planned_for)}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Budget: {formatCurrency(trip.budget)}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Store: {trip.store?.name || 'Not assigned'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Items: {trip.items ? trip.items.length : 0}
-          </Typography>
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
+              {formatDate(trip.planned_for)}
+            </Typography>
+            <Typography variant="caption" color="text.disabled">·</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
+              {formatCurrency(trip.budget)}
+            </Typography>
+            <Typography variant="caption" color="text.disabled">·</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
+              {trip.store?.name || 'No store'}
+            </Typography>
+            <Typography variant="caption" color="text.disabled">·</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
+              {trip.items ? trip.items.length : 0} items
+            </Typography>
+          </Stack>
         </Box>
       </CardContent>
     </Card>
