@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import { formatCurrency } from '../../../../../utils/formatCurrency';
+import CategorySelector from '../../../../../components/CategorySelector';
 
 export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
   const theme = useTheme();
@@ -65,7 +66,7 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
                           {item.inventory_item?.category ? (
                             <Chip label={item.inventory_item.category.name} size="small" variant="tonal" sx={{ fontSize: '0.7rem', height: 20 }} />
                           ) : null}
-                          {item.is_unplanned ? <Chip label="Custom" size="small" color="info" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} /> : null}
+                          {item.is_ad_hoc ? <Chip label="Custom" size="small" color="info" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} /> : null}
                         </Stack>
                         <IconButton size="small" color="error" onClick={() => removeItem(index)} sx={{ mt: -0.5, mr: -0.5 }}>
                           <DeleteRoundedIcon fontSize="small" />
@@ -81,7 +82,7 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
                             onChange={(event) =>
                               updateItem(index, {
                                 item_name: event.target.value,
-                                is_unplanned: true,
+                                is_ad_hoc: true,
                                 inventory_item_id: '',
                                 inventory_item: null
                               })
@@ -89,6 +90,16 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
                             size="small"
                           />
                         </Grid>
+                        {item.is_ad_hoc && (
+                          <Grid size={{ xs: 12, md: 4 }}>
+                            <CategorySelector
+                              value={item.category_id || ''}
+                              onChange={(event) => 
+                                updateItem(index, { category_id: event.target.value })
+                              }
+                            />
+                          </Grid>
+                        )}
                         <Grid size={{ xs: 3, md: 2 }}>
                           <TextField
                             fullWidth
@@ -130,35 +141,6 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
                           </Stack>
                         </Grid>
                       </Grid>
-
-                      <Divider sx={{ borderStyle: 'dashed' }} />
-
-                      <Stack direction="row" spacing={2} sx={{ mt: -0.5 }}>
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              size="small"
-                              checked={item.is_purchased}
-                              onChange={(event) =>
-                                updateItem(index, { is_purchased: event.target.checked })
-                              }
-                            />
-                          }
-                          label={<Typography variant="body2">Purchased</Typography>}
-                        />
-                        <FormControlLabel
-                          control={
-                            <Checkbox
-                              size="small"
-                              checked={item.is_unplanned}
-                              onChange={(event) =>
-                                updateItem(index, { is_unplanned: event.target.checked })
-                              }
-                            />
-                          }
-                          label={<Typography variant="body2">Custom</Typography>}
-                        />
-                      </Stack>
                     </Stack>
                   </CardContent>
                 </Card>

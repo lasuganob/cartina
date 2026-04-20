@@ -15,9 +15,10 @@ import QrCodeScannerRoundedIcon from '@mui/icons-material/QrCodeScannerRounded';
 import InventoryRoundedIcon from '@mui/icons-material/InventoryRounded';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import Alert from '@mui/material/Alert';
-import MenuItem from '@mui/material/MenuItem';
 import { formatCurrency } from '../../../../utils/formatCurrency';
 import { db, queueMutation } from '../../../../lib/db';
+import { apiClient } from '../../../../api/client';
+import CategorySelector from '../../../../components/CategorySelector';
 
 
 
@@ -74,9 +75,18 @@ export default function UnplannedItemForm({
   const handleSaveToInventory = async () => {
     setBusy(true);
     try {
+      let inventoryItemId;
+      try {
+        const response = await apiClient.getNextInventoryItemId();
+        inventoryItemId = response.next_id;
+      } catch (idError) {
+        console.warn('Failed to fetch numeric ID, using temporary UUID:', idError);
+        inventoryItemId = crypto.randomUUID();
+      }
+
       const selectedCategory = categories.find(c => c.id === categoryId);
       const newItem = {
-        id: crypto.randomUUID(),
+        id: inventoryItemId,
         name: unplannedDraft.item_name.trim(),
         barcode: unplannedDraft.barcode.trim(),
         category_id: categoryId,
@@ -337,21 +347,11 @@ export default function UnplannedItemForm({
               </Typography>
             </Stack>
 
-            <TextField
-              select
-              fullWidth
-              label="Category"
-              size="small"
+            <CategorySelector
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              required
-            >
-              {categories.map((cat) => (
-                <MenuItem key={cat.id} value={cat.id}>
-                  {cat.name}
-                </MenuItem>
-              ))}
-            </TextField>
+              categories={categories}
+            />
 
             <Stack spacing={1.5}>
               <Button

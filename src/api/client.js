@@ -72,6 +72,15 @@ export const apiClient = {
       params: { count }
     });
   },
+  getNextInventoryItemId() {
+    return request('/inventory-items/next-id');
+  },
+  getNextStoreId() {
+    return request('/stores/next-id');
+  },
+  getNextCategoryId() {
+    return request('/categories/next-id');
+  },
   getInventoryItems() {
     return request('/inventory-items');
   },
@@ -113,7 +122,6 @@ export const apiClient = {
     });
   },
   replaceTripChecklist(payload) {
-    console.log('replaceTripChecklist', payload);
     return request('/trip-checklist/replace', {
       method: 'POST',
       body: payload

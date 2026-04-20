@@ -21,6 +21,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, queueMutation } from '../../../lib/db';
 import { useAppContext } from '../../../context/AppContext';
+import { apiClient } from '../../../api/client';
 
 
 
@@ -59,8 +60,20 @@ export default function StoresManager() {
     if (!name.trim()) return;
 
     try {
+      let storeId = editingStore?.id;
+
+      if (!editingStore) {
+        try {
+          const response = await apiClient.getNextStoreId();
+          storeId = response.next_id;
+        } catch (idError) {
+          console.warn('Failed to fetch numeric ID, using temporary UUID:', idError);
+          storeId = crypto.randomUUID();
+        }
+      }
+
       const storeData = {
-        id: editingStore ? editingStore.id : crypto.randomUUID(),
+        id: storeId,
         name: name.trim()
       };
 

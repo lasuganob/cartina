@@ -15,24 +15,70 @@ import TripCard from '../components/TripCard';
 import { NavLink } from 'react-router-dom';
 
 const PAGE_SIZE = 5;
+ 
+const HistoryCategory = ({ title, trips, page, setPage }) => {
+  if (trips.length === 0) return null;
+ 
+  const totalPages = Math.ceil(trips.length / PAGE_SIZE);
+  const startIndex = (page - 1) * PAGE_SIZE;
+  const paginated = trips.slice(startIndex, startIndex + PAGE_SIZE);
+ 
+  return (
+    <Box sx={{ mb: 4, '&:last-child': { mb: 0 } }}>
+      <Typography
+        variant="caption"
+        fontWeight={700}
+        color="text.secondary"
+        sx={{
+          textTransform: 'uppercase',
+          letterSpacing: 1,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 1.5,
+          px: 0.5
+        }}
+      >
+        <span>{title}</span>
+        <Box component="span" sx={{ opacity: 0.6, fontSize: '10px' }}>
+          {trips.length} {trips.length === 1 ? 'Trip' : 'Trips'}
+        </Box>
+      </Typography>
+      <Stack spacing={2}>
+        {paginated.map((trip) => (
+          <TripCard key={trip.id} trip={trip} />
+        ))}
+      </Stack>
+      {totalPages > 1 && (
+        <Stack direction="row" justifyContent="center" sx={{ mt: 2 }}>
+          <Pagination
+            size="small"
+            page={page}
+            count={totalPages}
+            color="primary"
+            onChange={(_, nextPage) => setPage(nextPage)}
+          />
+        </Stack>
+      )}
+    </Box>
+  );
+};
 
 export default function TripsListSection({ trips, loading, error }) {
-  const [page, setPage] = useState(1);
+  const [plannedPage, setPlannedPage] = useState(1);
+  const [completedPage, setCompletedPage] = useState(1);
+  const [cancelledPage, setCancelledPage] = useState(1);
+  const [archivedPage, setArchivedPage] = useState(1);
 
   const activeTrips = useMemo(() => trips.filter(t => t.status === 'in_progress'), [trips]);
-  const otherTrips = useMemo(() => trips.filter(t => t.status !== 'in_progress'), [trips]);
+  const cancelledTrips = useMemo(() => trips.filter(t => t.status === 'cancelled'), [trips]);
+  const archivedTrips = useMemo(() => trips.filter(t => t.status === 'archived'), [trips]);
+  const completedTrips = useMemo(() => trips.filter(t => t.status === 'completed'), [trips]);
+  const plannedTrips = useMemo(() => trips.filter(t => t.status === 'planned'), [trips]);
 
-  const totalPages = Math.max(1, Math.ceil(otherTrips.length / PAGE_SIZE));
-  const paginatedTrips = useMemo(() => {
-    const startIndex = (page - 1) * PAGE_SIZE;
-    return otherTrips.slice(startIndex, startIndex + PAGE_SIZE);
-  }, [page, otherTrips]);
 
-  useEffect(() => {
-    if (page > totalPages) {
-      setPage(totalPages);
-    }
-  }, [page, totalPages]);
+
+
 
   if (loading) {
     return (
@@ -131,39 +177,18 @@ export default function TripsListSection({ trips, loading, error }) {
               Failed to refresh from GAS. Showing cached IndexedDB data.
             </Alert>
           ) : null}
-          {!otherTrips.length && !activeTrips.length ? (
+          {!trips.length ? (
             <EmptyState
               title="No trips recorded"
               description="Add a trip from the form to populate the list."
             />
           ) : (
-            <>
-              <Stack spacing={2}>
-                {paginatedTrips.map((trip) => (
-                  <TripCard key={trip.id} trip={trip} />
-                ))}
-              </Stack>
-              {otherTrips.length > PAGE_SIZE && (
-                <Stack
-                  direction={{ xs: 'column', sm: 'row' }}
-                  spacing={2}
-                  justifyContent="space-between"
-                  alignItems={{ xs: 'flex-start', sm: 'center' }}
-                  sx={{ mt: 3 }}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    Showing {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, otherTrips.length)} of{' '}
-                    {otherTrips.length} trips
-                  </Typography>
-                  <Pagination
-                    page={page}
-                    count={totalPages}
-                    color="primary"
-                    onChange={(_, nextPage) => setPage(nextPage)}
-                  />
-                </Stack>
-              )}
-            </>
+            <Box sx={{ mt: 2 }}>
+              <HistoryCategory title="Planned" trips={plannedTrips} page={plannedPage} setPage={setPlannedPage} />
+              <HistoryCategory title="Completed" trips={completedTrips} page={completedPage} setPage={setCompletedPage} />
+              <HistoryCategory title="Cancelled" trips={cancelledTrips} page={cancelledPage} setPage={setCancelledPage} />
+              <HistoryCategory title="Archived" trips={archivedTrips} page={archivedPage} setPage={setArchivedPage} />
+            </Box>
           )}
         </CardContent>
       </Card>

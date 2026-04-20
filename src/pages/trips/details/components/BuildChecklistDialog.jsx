@@ -29,15 +29,18 @@ function buildDraftItem(item, index) {
     trip_id: item.trip_id,
     item_name: item.item_name || item.inventory_item?.name || '',
     inventory_item_id: item.inventory_item_id || '',
+    category_id: item.category_id || item.inventory_item?.category_id || '',
     barcode: item.barcode || item.inventory_item?.barcode || '',
     quantity: Math.max(1, Number(item.quantity || 1)),
     planned_price: item.planned_price ?? item.inventory_item?.usual_price ?? '',
     actual_price: item.actual_price ?? '',
     is_purchased: Boolean(item.is_purchased),
     is_unplanned: Boolean(item.is_unplanned),
+    is_ad_hoc: Boolean(item.is_ad_hoc),
     sort_order: item.sort_order ?? index,
     created_at: item.created_at,
-    inventory_item: item.inventory_item || null
+    inventory_item: item.inventory_item || null,
+    category: item.category || (item.category_id && categoriesById ? categoriesById[item.category_id] : null) || null
   };
 }
 
@@ -61,25 +64,24 @@ export default function BuildChecklistDialog({ open, trip, busy, onClose, onSave
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const inventoryData =
-    useLiveQuery(async () => {
-      const [inventoryItems, categories] = await Promise.all([
-        db.inventoryItems.toArray(),
-        db.categories.toArray()
-      ]);
+  const categories = useLiveQuery(() => db.categories.orderBy('name').toArray(), []) || [];
+  const inventoryItems = useLiveQuery(() => db.inventoryItems.toArray(), []) || [];
 
-      const categoriesById = categories.reduce((accumulator, category) => {
-        accumulator[category.id] = category;
-        return accumulator;
-      }, {});
+  const categoriesById = useMemo(() => {
+    return categories.reduce((acc, cat) => {
+      acc[cat.id] = cat;
+      return acc;
+    }, {});
+  }, [categories]);
 
-      return inventoryItems
-        .map((item) => ({
-          ...item,
-          category: item.category_id ? categoriesById[item.category_id] || null : null
-        }))
-        .sort((left, right) => left.name.localeCompare(right.name));
-    }, []) || [];
+  const inventoryData = useMemo(() => {
+    return inventoryItems
+      .map((item) => ({
+        ...item,
+        category: item.category_id ? categoriesById[item.category_id] || null : null
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [inventoryItems, categoriesById]);
 
   const [draftItems, setDraftItems] = useState(() =>
     (trip?.items || []).map((item, index) => buildDraftItem(item, index))
@@ -125,14 +127,18 @@ export default function BuildChecklistDialog({ open, trip, busy, onClose, onSave
 
   function updateItem(index, changes) {
     setDraftItems((current) =>
-      current.map((item, itemIndex) =>
-        itemIndex === index
-          ? {
-              ...item,
-              ...changes
-            }
-          : item
-      )
+      current.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+
+        const nextItem = { ...item, ...changes };
+
+        // Enrich with full category object if category_id changed
+        if (changes.category_id !== undefined) {
+          nextItem.category = categoriesById[changes.category_id] || null;
+        }
+
+        return nextItem;
+      })
     );
   }
 
@@ -169,13 +175,15 @@ export default function BuildChecklistDialog({ open, trip, busy, onClose, onSave
           : Number(addDraft.planned_price),
       actual_price: '',
       is_purchased: false,
-      is_unplanned: !selectedOption,
+      is_unplanned: false,
+      is_ad_hoc: !selectedOption,
       inventory_item: selectedOption
         ? {
             ...selectedOption,
             category: selectedOption.category || null
           }
-        : null
+        : null,
+      category: selectedOption?.category || null
     };
   }
 
@@ -270,7 +278,7 @@ export default function BuildChecklistDialog({ open, trip, busy, onClose, onSave
           borderColor: 'divider',
           bgcolor: 'background.paper'
         }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>Build Checklist</Typography>
+          <Typography variant="body1" sx={{ fontWeight: 700 }}>Build Checklist</Typography>
           {isMobile ? (
             <IconButton onClick={onClose} disabled={busy} edge="end">
               <CloseRoundedIcon />

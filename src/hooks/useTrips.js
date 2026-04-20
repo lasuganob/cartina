@@ -28,6 +28,7 @@ function normalizeChecklistItem(item) {
     ...item,
     item_name: item.item_name || '',
     inventory_item_id: item.inventory_item_id || '',
+    category_id: item.category_id || '',
     barcode: item.barcode || '',
     quantity: Math.max(1, Number(item.quantity || 1)),
     planned_price:
@@ -40,6 +41,7 @@ function normalizeChecklistItem(item) {
         : Number(item.actual_price),
     is_purchased: item.is_purchased === true || item.is_purchased === 'true',
     is_unplanned: item.is_unplanned === true || item.is_unplanned === 'true',
+    is_ad_hoc: item.is_ad_hoc === true || item.is_ad_hoc === 'true',
     sort_order: Number(item.sort_order || 0),
     created_at: item.created_at || new Date().toISOString()
   };
@@ -173,11 +175,14 @@ export function useTrips() {
         groups[tripKey] = [];
       }
 
+      const inventoryItem = item.inventory_item_id
+        ? inventoryItemsById[String(item.inventory_item_id)] || null
+        : null;
+
       groups[tripKey].push({
         ...item,
-        inventory_item: item.inventory_item_id
-          ? inventoryItemsById[String(item.inventory_item_id)] || null
-          : null
+        inventory_item: inventoryItem,
+        category: inventoryItem?.category || (item.category_id ? categoriesById[String(item.category_id)] || null : null)
       });
       return groups;
     }, {});
@@ -232,15 +237,20 @@ export function useTrips() {
   }, []);
 
   async function addTrip(values) {
-    const response = await apiClient.getNextTripId();
-    const nextTripId = Number(response?.next_id);
-
-    if (!Number.isFinite(nextTripId) || nextTripId <= 0) {
-      throw new Error('Could not retrieve the next trip ID from Google Sheets.');
+    let tripId;
+    try {
+      const response = await apiClient.getNextTripId();
+      tripId = Number(response?.next_id);
+      if (!Number.isFinite(tripId) || tripId <= 0) {
+        throw new Error('Invalid ID returned from server');
+      }
+    } catch (idError) {
+      console.warn('Failed to fetch numeric ID, using temporary UUID:', idError);
+      tripId = crypto.randomUUID();
     }
 
     const trip = normalizeTrip({
-      id: nextTripId,
+      id: tripId,
       ...values,
       status: 'planned',
       created_at: new Date().toISOString(),
@@ -290,7 +300,7 @@ export function useTrips() {
     await queueMutation('trips', 'update', updatedTrip);
 
     // If trip is completed, clear any persistent shopping session or draft from localStorage
-    if (updatedTrip.status === 'completed') {
+    if (updatedTrip.status === 'completed' || updatedTrip.status === 'cancelled') {
       window.localStorage.removeItem(getShoppingDraftKey(id));
       window.localStorage.removeItem(getShoppingSessionKey(id));
     }
@@ -332,12 +342,14 @@ export function useTrips() {
         trip_id: tripId,
         item_name: persistableItem.item_name || inventoryRef?.name || persistableItem.inventory_item?.name || '',
         inventory_item_id: persistableItem.inventory_item_id || '',
+        category_id: persistableItem.category_id || inventoryRef?.category_id || '',
         barcode: persistableItem.barcode || inventoryRef?.barcode || persistableItem.inventory_item?.barcode || '',
         quantity: persistableItem.quantity || 1,
         planned_price: persistableItem.planned_price,
         actual_price: persistableItem.actual_price,
         is_purchased: persistableItem.is_purchased,
         is_unplanned: persistableItem.is_unplanned,
+        is_ad_hoc: persistableItem.is_ad_hoc,
         sort_order: persistableItem.sort_order ?? index,
         created_at: persistableItem.created_at || new Date().toISOString()
       });

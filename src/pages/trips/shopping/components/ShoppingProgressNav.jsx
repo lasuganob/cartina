@@ -13,6 +13,8 @@ import RemoveShoppingCartRoundedIcon from '@mui/icons-material/RemoveShoppingCar
 import PauseCircleRoundedIcon from '@mui/icons-material/PauseCircleRounded';
 import PlayCircleFilledWhiteRoundedIcon from '@mui/icons-material/PlayCircleFilledWhiteRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
+import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import ExpandLessRoundedIcon from '@mui/icons-material/ExpandLessRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { formatCurrency } from '../../../../utils/formatCurrency';
@@ -35,7 +37,9 @@ export default function ShoppingProgressNav({
   draftItemsLength,
   elapsedMs,
   handleCheckout,
-  handlePauseResume
+  handlePauseResume,
+  handleBackToTrip,
+  handleCancelTrip
 }) {
   return (
     <Box
@@ -139,6 +143,34 @@ export default function ShoppingProgressNav({
                   {metrics.variance > 0 ? '+' : metrics.variance < 0 ? '-' : '±'}
                   {formatCurrency(Math.abs(metrics.variance))}
                 </Typography>
+              </Grid>
+            </Grid>
+
+            <Grid container spacing={1.5}>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  onClick={handleBackToTrip}
+                  disabled={busy}
+                  startIcon={<ArrowBackRoundedIcon />}
+                  sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
+                >
+                  Back to Trip
+                </Button>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  color="error"
+                  onClick={handleCancelTrip}
+                  disabled={busy}
+                  startIcon={<CancelRoundedIcon />}
+                  sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
+                >
+                  Cancel Trip
+                </Button>
               </Grid>
             </Grid>
 

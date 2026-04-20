@@ -21,6 +21,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, queueMutation } from '../../../lib/db';
 import { useAppContext } from '../../../context/AppContext';
+import { apiClient } from '../../../api/client';
 
 
 
@@ -59,8 +60,20 @@ export default function CategoriesManager() {
     if (!name.trim()) return;
 
     try {
+      let categoryId = editingCategory?.id;
+
+      if (!editingCategory) {
+        try {
+          const response = await apiClient.getNextCategoryId();
+          categoryId = response.next_id;
+        } catch (idError) {
+          console.warn('Failed to fetch numeric ID, using temporary UUID:', idError);
+          categoryId = crypto.randomUUID();
+        }
+      }
+
       const categoryData = {
-        id: editingCategory ? editingCategory.id : crypto.randomUUID(),
+        id: categoryId,
         name: name.trim()
       };
 

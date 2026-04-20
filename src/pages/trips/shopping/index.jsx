@@ -26,6 +26,7 @@ import { useBarcodeLookup } from '../../../hooks/useBarcodeLookup';
 import ShoppingItemCard from './components/ShoppingItemCard';
 import UnplannedItemForm from './components/UnplannedItemForm';
 import ShoppingProgressNav from './components/ShoppingProgressNav';
+import CatalogItemDialog from './components/CatalogItemDialog';
 
 
 
@@ -49,6 +50,8 @@ function normalizeDraftItem(item, index) {
         : String(item.actual_price),
     is_purchased: Boolean(item.is_purchased),
     is_unplanned: Boolean(item.is_unplanned),
+    is_ad_hoc: Boolean(item.is_ad_hoc),
+    category_id: item.category_id || '',
     sort_order: Number(item.sort_order ?? index),
     created_at: item.created_at || new Date().toISOString()
   };
@@ -62,6 +65,9 @@ function buildPersistedItems(items, tripId) {
     quantity: Math.max(1, Number(item.quantity || 1)),
     planned_price: item.planned_price === '' ? null : Number(item.planned_price),
     actual_price: item.actual_price === '' ? null : Number(item.actual_price),
+    is_unplanned: Boolean(item.is_unplanned),
+    is_ad_hoc: Boolean(item.is_ad_hoc),
+    category_id: item.category_id || '',
     sort_order: index
   }));
 }
@@ -97,6 +103,8 @@ export default function TripShoppingPage() {
     lastStartedAt: null,
     startedAt: ''
   });
+  const [catalogingItem, setCatalogingItem] = useState(null);
+  const [lastScannedBarcode, setLastScannedBarcode] = useState('');
   const { lookup } = useBarcodeLookup();
   const categories = useLiveQuery(() => db.categories.orderBy('name').toArray(), []) || [];
   const persistRef = useRef({
@@ -270,11 +278,19 @@ export default function TripShoppingPage() {
     };
   }, []);
 
-  async function handleUpdateItem(index, changes) {
+  const handleUpdateItem = useCallback((index, changes) => {
+    const item = draftItems[index];
+
+    // If marking an ad-hoc item as purchased, trigger cataloging flow
+    if (changes.is_purchased === true && item && item.is_ad_hoc && !item.inventory_item_id) {
+      setCatalogingItem({ ...item, index });
+      return;
+    }
+
     setDraftItems((current) =>
       current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...changes } : item))
     );
-  }
+  }, [draftItems]);
 
   function handleAddUnplannedItem(inventoryItem = null) {
     const newItem = normalizeDraftItem(
@@ -309,9 +325,14 @@ export default function TripShoppingPage() {
     const existingIndex = draftItems.findIndex((item) => String(item.barcode) == String(barcode));
     if (existingIndex !== -1) {
       const item = draftItems[existingIndex];
-      handleUpdateItem(existingIndex, { is_purchased: true });
       setActiveItemId(item.draft_key || item.id);
       setScannerStatus('found');
+      return;
+    }
+
+    // If we are in the middle of cataloging an item, provide the barcode to it
+    if (catalogingItem) {
+      setLastScannedBarcode(barcode);
       return;
     }
 
@@ -379,6 +400,31 @@ export default function TripShoppingPage() {
       throw error;
     } finally {
       isCompletingRef.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function handleCancelTrip() {
+    if (!trip) {
+      return;
+    }
+
+    setBusy(true);
+    try {
+      skipPersistOnExitRef.current = true;
+      hasPersistedOnExitRef.current = true;
+      await updateTrip(trip.id, {
+        status: 'cancelled',
+        started_at: sessionState.startedAt || trip.started_at || '',
+        elapsed_ms: elapsedMs,
+        completed_at: ''
+      });
+      navigate(`/trips/${trip.id}`);
+    } catch (error) {
+      skipPersistOnExitRef.current = false;
+      hasPersistedOnExitRef.current = false;
+      throw error;
+    } finally {
       setBusy(false);
     }
   }
@@ -579,7 +625,25 @@ export default function TripShoppingPage() {
         elapsedMs={elapsedMs}
         handleCheckout={handleCheckout}
         handlePauseResume={handlePauseResume}
+        handleBackToTrip={() => navigate(`/trips/${trip.id}`)}
+        handleCancelTrip={handleCancelTrip}
       />
+
+      {catalogingItem && (
+        <CatalogItemDialog
+          item={catalogingItem}
+          open={!!catalogingItem}
+          onClose={() => setCatalogingItem(null)}
+          categories={categories}
+          onScanClick={() => setScannerOpen(true)}
+          scannerBarcode={lastScannedBarcode}
+          onComplete={(updates) => {
+            handleUpdateItem(catalogingItem.index, updates);
+            setCatalogingItem(null);
+            setLastScannedBarcode('');
+          }}
+        />
+      )}
 
       {/* Scanner is now inline above, but we keep the logic the same */}
     </>

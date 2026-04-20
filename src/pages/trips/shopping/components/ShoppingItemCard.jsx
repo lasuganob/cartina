@@ -72,6 +72,9 @@ export default function ShoppingItemCard({ item, index, onChange, open, onOpen, 
                   {item.is_unplanned && (
                     <Chip label="Unplanned" size="small" color="warning" sx={{ height: 20, fontSize: 10 }} />
                   )}
+                  {item.is_ad_hoc && (
+                    <Chip label="Custom" size="small" color="info" sx={{ height: 20, fontSize: 10 }} />
+                  )}
                 </Stack>
 
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">

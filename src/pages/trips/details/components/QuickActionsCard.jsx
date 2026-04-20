@@ -40,7 +40,7 @@ export default function QuickActionsCard({
             fullWidth
             variant="outlined"
             onClick={onStartTrip}
-            disabled={busy || trip.status === 'completed' || trip.status === 'archived'}
+            disabled={busy || trip.status === 'completed' || trip.status === 'cancelled' || trip.status === 'archived'}
             startIcon={trip.status === 'in_progress' ? <PauseCircleFilledRoundedIcon /> : <PlayCircleFilledWhiteRoundedIcon />}
             sx={styles.quickActionButton}
           >
@@ -52,7 +52,7 @@ export default function QuickActionsCard({
             fullWidth
             variant="outlined"
             onClick={onBuildChecklist}
-            disabled={busy || trip.status === 'completed' || trip.status === 'archived'}
+            disabled={busy || trip.status === 'completed' || trip.status === 'cancelled' || trip.status === 'archived'}
             startIcon={<BorderColorRoundedIcon />}
             sx={styles.quickActionButton}
           >

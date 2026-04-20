@@ -27,9 +27,10 @@ function StatBox({ label, value, sub, color }) {
 
 export default function TripStatsCard({ trip }) {
   const items = trip.items || [];
-  const purchased  = items.filter((i) => i.is_purchased);
-  const unplanned  = items.filter((i) => i.is_unplanned);
-  const progress   = items.length ? Math.round((purchased.length / items.length) * 100) : 0;
+  const purchased = items.filter((i) => i.is_purchased);
+  const unplanned = items.filter((i) => i.is_unplanned);
+  const adhoc     = items.filter((i) => i.is_ad_hoc);
+  const progress  = items.length ? Math.round((purchased.length / items.length) * 100) : 0;
 
   const plannedTotal = items.reduce((s, i) => s + Number(i.planned_price || 0) * Number(i.quantity || 1), 0);
   const actualTotal  = items.reduce((s, i) => s + Number(i.actual_price  || 0) * Number(i.quantity || 1), 0);
@@ -69,9 +70,14 @@ export default function TripStatsCard({ trip }) {
             sub={`${purchased.length} purchased`}
           />
           <StatBox
+            label="Planned"
+            value={items.length - unplanned.length}
+            sub={`${adhoc.length} custom`}
+          />
+          <StatBox
             label="Unplanned"
             value={unplanned.length}
-            sub="extra items"
+            sub="spontaneous"
             color={unplanned.length > 0 ? 'warning.main' : undefined}
           />
           <StatBox

@@ -18,10 +18,10 @@ db.version(3).stores({
   transactions: 'id, tripId, createdAt'
 });
 
-db.version(4).stores({
+db.version(6).stores({
   trips: 'id, status, planned_for, created_at, completed_at, store_id',
-  tripChecklist: 'id, trip_id, inventory_item_id, barcode, is_purchased, is_unplanned, sort_order, created_at',
-  inventoryItems: 'id, category_id, barcode, created_at',
+  tripChecklist: 'id, trip_id, inventory_item_id, category_id, barcode, is_purchased, is_unplanned, is_ad_hoc, sort_order, created_at',
+  inventoryItems: 'id, category_id, barcode, has_no_barcode, created_at',
   stores: 'id, name',
   categories: 'id, name',
   syncQueue: '++id, entity, action, status, createdAt',

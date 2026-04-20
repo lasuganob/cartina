@@ -3,7 +3,6 @@ import {
   Button,
   IconButton,
   InputAdornment,
-  MenuItem,
   Stack,
   SwipeableDrawer,
   TextField,
@@ -13,6 +12,7 @@ import QrCodeScannerRoundedIcon from '@mui/icons-material/QrCodeScannerRounded';
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import BarcodeScannerDialog from '../../../components/BarcodeScannerDialog';
+import CategorySelector from '../../../components/CategorySelector';
 
 export default function InventoryEditor({
   editingItem,
@@ -115,25 +115,14 @@ export default function InventoryEditor({
             required
           />
 
-          <TextField
-            select
-            fullWidth
-            label="Category"
-            name="category_id"
-            size="small"
+          <CategorySelector
             value={values.category_id}
             onChange={onChange}
             error={Boolean(errors.category_id)}
             helperText={errors.category_id}
             disabled={busy}
-            required
-          >
-            {categories.map((category) => (
-              <MenuItem key={category.id} value={category.id}>
-                {category.name}
-              </MenuItem>
-            ))}
-          </TextField>
+            categories={categories}
+          />
 
           <TextField
             fullWidth

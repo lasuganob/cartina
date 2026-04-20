@@ -17,7 +17,7 @@ import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
 
 const ITEMS_PER_PAGE = 5;
 
-export default function ChecklistPreviewCard({ items, onBuildChecklist }) {
+export default function ChecklistPreviewCard({ items, onBuildChecklist, buildChecklistDisabled = false }) {
   const [page, setPage] = useState(1);
   const sortedItems = items.slice().sort((a, b) => a.sort_order - b.sort_order);
   const pageCount = Math.max(1, Math.ceil(sortedItems.length / ITEMS_PER_PAGE));
@@ -55,6 +55,7 @@ export default function ChecklistPreviewCard({ items, onBuildChecklist }) {
             <Button 
                 variant="contained" 
                 onClick={onBuildChecklist}
+                disabled={buildChecklistDisabled}
                 fullWidth
                 sx={{ borderRadius: 2, py: 1.5 }}
             >
@@ -81,6 +82,7 @@ export default function ChecklistPreviewCard({ items, onBuildChecklist }) {
                         </Typography>
                         <Stack direction="row" spacing={0.5} alignItems="center">
                              {item.is_unplanned && <Chip label="Unplanned" size="extraSmall" color="warning" variant="outlined" sx={{ fontSize: '10px', height: 18 }} />}
+                             {item.is_ad_hoc && <Chip label="Custom" size="extraSmall" color="info" variant="outlined" sx={{ fontSize: '10px', height: 18 }} />}
                              <Box sx={{ 
                                  width: 8, 
                                  height: 8, 
@@ -92,10 +94,10 @@ export default function ChecklistPreviewCard({ items, onBuildChecklist }) {
 
                     {/* Bottom Row: Metadata Tags */}
                     <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ gap: 1 }}>
-                        {item.inventory_item?.category && (
+                        {item.category && (
                           <Stack direction="row" spacing={0.5} alignItems="center">
                              <CategoryRoundedIcon sx={{ fontSize: 12, color: 'text.disabled' }} />
-                             <Typography variant="caption" color="text.secondary">{item.inventory_item.category.name}</Typography>
+                             <Typography variant="caption" color="text.secondary">{item.category.name}</Typography>
                           </Stack>
                         )}
                         <Typography variant="caption" color="text.disabled">·</Typography>

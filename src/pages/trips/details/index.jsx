@@ -45,6 +45,10 @@ export default function TripDetailsPage() {
   }
 
   function handleBuildChecklist() {
+    if (trip.status === 'cancelled') {
+      return;
+    }
+
     setChecklistDialogOpen(true);
   }
 
@@ -122,7 +126,11 @@ export default function TripDetailsPage() {
         <Grid size={{ xs: 12, lg: 8 }}>
           <Stack spacing={3}>
             <TripDetailsCard trip={trip} saving={busy} onSave={handleSaveDetails} />
-            <ChecklistPreviewCard items={trip.items} onBuildChecklist={handleBuildChecklist} />
+            <ChecklistPreviewCard
+              items={trip.items}
+              onBuildChecklist={handleBuildChecklist}
+              buildChecklistDisabled={trip.status === 'cancelled'}
+            />
           </Stack>
         </Grid>
 

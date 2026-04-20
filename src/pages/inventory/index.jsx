@@ -20,6 +20,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import PageHeader from '../../components/PageHeader';
 import { useAppContext } from '../../context/AppContext';
 import { db, queueMutation } from '../../lib/db';
+import { apiClient } from '../../api/client';
 
 
 
@@ -39,9 +40,9 @@ const initialFormValues = {
 
 const PAGE_SIZE = 10;
 
-function normalizeInventoryItem(values, existingItem) {
+function normalizeInventoryItem(values, existingItem, newId) {
   return {
-    id: existingItem?.id || crypto.randomUUID(),
+    id: existingItem?.id || newId,
     name: String(values.name || '').trim(),
     category_id: String(values.category_id || '').trim(),
     usual_price: values.usual_price === '' ? 0 : Number(values.usual_price),
@@ -200,7 +201,17 @@ export default function InventoryPage() {
 
     setBusy(true);
     try {
-      const normalizedItem = normalizeInventoryItem(values, editingItem);
+      let itemId = editingItem?.id;
+      if (!itemId) {
+        try {
+          const response = await apiClient.getNextInventoryItemId();
+          itemId = response.next_id;
+        } catch (idError) {
+          console.warn('Failed to fetch numeric ID, using temporary UUID:', idError);
+          itemId = crypto.randomUUID();
+        }
+      }
+      const normalizedItem = normalizeInventoryItem(values, editingItem, itemId);
       const action = editingItem ? 'update' : 'create';
 
       await db.inventoryItems.put(normalizedItem);

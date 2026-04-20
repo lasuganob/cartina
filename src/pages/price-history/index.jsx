@@ -66,12 +66,20 @@ function useHighcharts() {
   return state;
 }
 
-function PriceTrendChart({ itemName, points }) {
+function formatRecordDate(timestamp) {
+  if (!Number.isFinite(timestamp)) {
+    return '';
+  }
+
+  return new Date(timestamp).toLocaleDateString();
+}
+
+function PriceTrendChart({ itemName, series }) {
   const { loading, error } = useHighcharts();
   const containerRef = useRef(null);
 
   useEffect(() => {
-    if (loading || error || !containerRef.current || !window.Highcharts || !points.length) {
+    if (loading || error || !containerRef.current || !window.Highcharts || !series.length) {
       return undefined;
     }
 
@@ -92,15 +100,9 @@ function PriceTrendChart({ itemName, points }) {
         }
       },
       legend: {
-        enabled: false
+        enabled: true
       },
-      series: [
-        {
-          name: itemName,
-          data: points.map((point) => [point.timestamp, point.price]),
-          color: '#4a6555'
-        }
-      ],
+      series,
       credits: {
         enabled: false
       }
@@ -109,7 +111,7 @@ function PriceTrendChart({ itemName, points }) {
     return () => {
       chart.destroy();
     };
-  }, [error, itemName, loading, points]);
+  }, [error, itemName, loading, series]);
 
   if (loading) {
     return <LinearProgress />;
@@ -119,10 +121,10 @@ function PriceTrendChart({ itemName, points }) {
     return <Alert severity="warning">{error}</Alert>;
   }
 
-  if (!points.length) {
+  if (!series.length) {
     return (
       <Alert severity="info">
-        No purchased price points found for this item in the last 6 months.
+        No store-specific price points found for this item in the last 6 months.
       </Alert>
     );
   }
@@ -149,6 +151,7 @@ export default function PriceHistoryPage() {
     };
 
   const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedStore, setSelectedStore] = useState(null);
 
   const itemOptions = useMemo(
     () =>
@@ -157,21 +160,22 @@ export default function PriceHistoryPage() {
         .sort((left, right) => left.name.localeCompare(right.name)),
     [historyData.inventoryItems]
   );
-
   useEffect(() => {
-    if (!selectedItem && itemOptions.length) {
+    if (!itemOptions.length) {
+      if (selectedItem) {
+        setSelectedItem(null);
+      }
+      return;
+    }
+
+    if (!selectedItem || !itemOptions.some((item) => String(item.id) === String(selectedItem.id))) {
       setSelectedItem(itemOptions[0]);
     }
   }, [itemOptions, selectedItem]);
 
-  const analysis = useMemo(() => {
+  const records = useMemo(() => {
     if (!selectedItem) {
-      return {
-        points: [],
-        bestPrice: null,
-        averagePrice: null,
-        worstPrice: null
-      };
+      return [];
     }
 
     const tripMap = historyData.trips.reduce((accumulator, trip) => {
@@ -184,40 +188,100 @@ export default function PriceHistoryPage() {
     }, {});
 
     const cutoff = Date.now() - SIX_MONTHS_MS;
-    const records = historyData.checklistItems
+    return historyData.checklistItems
       .filter((item) => String(item.inventory_item_id) === String(selectedItem.id))
       .filter((item) => item.actual_price != null && item.actual_price !== '')
       .map((item) => {
         const trip = tripMap[item.trip_id];
+        const store = trip?.store_id ? storeMap[trip.store_id] || null : null;
+        const price = Number(item.actual_price);
         const timestamp = new Date(trip?.completed_at || trip?.planned_for || item.created_at).getTime();
         return {
           ...item,
           trip,
-          store: trip?.store_id ? storeMap[trip.store_id] || null : null,
+          store,
+          price,
           timestamp
         };
       })
-      .filter((item) => Number.isFinite(item.timestamp) && item.timestamp >= cutoff)
+      .filter(
+        (item) =>
+          item.trip &&
+          item.trip.status !== 'archived' &&
+          item.trip.status !== 'cancelled' &&
+          item.store &&
+          Number.isFinite(item.price) &&
+          Number.isFinite(item.timestamp) &&
+          item.timestamp >= cutoff
+      )
       .sort((left, right) => left.timestamp - right.timestamp);
+  }, [historyData.checklistItems, historyData.stores, historyData.trips, selectedItem]);
 
-    const points = records.map((item) => ({
-      timestamp: item.timestamp,
-      price: Number(item.actual_price)
-    }));
+  const comparisonStores = useMemo(
+    () =>
+      records
+        .reduce((accumulator, record) => {
+          if (!accumulator.some((store) => String(store.id) === String(record.store.id))) {
+            accumulator.push(record.store);
+          }
+          return accumulator;
+        }, [])
+        .sort((left, right) => left.name.localeCompare(right.name)),
+    [records]
+  );
 
-    const averagePrice = records.length
-      ? records.reduce((sum, item) => sum + Number(item.actual_price), 0) / records.length
+  useEffect(() => {
+    if (!comparisonStores.length) {
+      if (selectedStore) {
+        setSelectedStore(null);
+      }
+      return;
+    }
+
+    if (!selectedStore || !comparisonStores.some((store) => String(store.id) === String(selectedStore.id))) {
+      setSelectedStore(comparisonStores[0]);
+    }
+  }, [comparisonStores, selectedStore]);
+
+  const storeSummaries = useMemo(() => {
+    const groupedRecords = records.reduce((accumulator, record) => {
+      const storeKey = String(record.store.id);
+
+      if (!accumulator[storeKey]) {
+        accumulator[storeKey] = {
+          store: record.store,
+          latestRecord: record
+        };
+      }
+
+      if (record.timestamp >= accumulator[storeKey].latestRecord.timestamp) {
+        accumulator[storeKey].latestRecord = record;
+      }
+
+      return accumulator;
+    }, {});
+
+    return Object.values(groupedRecords)
+      .sort((left, right) => left.latestRecord.price - right.latestRecord.price);
+  }, [records]);
+
+  const analysis = useMemo(() => {
+    const selectedStoreSummary = selectedStore
+      ? storeSummaries.find((summary) => String(summary.store.id) === String(selectedStore.id)) || null
       : null;
 
-    const sortedByPrice = records.slice().sort((left, right) => Number(left.actual_price) - Number(right.actual_price));
-
     return {
-      points,
-      averagePrice,
-      bestPrice: sortedByPrice[0] || null,
-      worstPrice: sortedByPrice[sortedByPrice.length - 1] || null
+      series: storeSummaries.map((summary) => ({
+        name: summary.store.name,
+        data: records
+          .filter((record) => String(record.store.id) === String(summary.store.id))
+          .map((record) => [record.timestamp, record.price])
+      })),
+      selectedStoreSummary,
+      bestStore: storeSummaries[0] || null,
+      worstStore: storeSummaries[storeSummaries.length - 1] || null
     };
-  }, [historyData.checklistItems, historyData.stores, historyData.trips, selectedItem]);
+  }, [records, selectedStore, storeSummaries]);
 
   return (
     <>
@@ -232,18 +296,19 @@ export default function PriceHistoryPage() {
           <Card>
             <CardContent>
               <Stack spacing={2}>
-                <Typography variant="h6">Item Search & Trend</Typography>
+                <Typography variant="h6">Item Trend by Store</Typography>
                 <Autocomplete
                   options={itemOptions}
                   value={selectedItem}
                   onChange={(_, value) => setSelectedItem(value)}
+                  isOptionEqualToValue={(option, value) => String(option.id) === String(value.id)}
                   getOptionLabel={(option) => option.name || ''}
                   renderInput={(params) => <TextField {...params} label="Search item" />}
                 />
                 {selectedItem ? (
-                  <PriceTrendChart itemName={selectedItem.name} points={analysis.points} />
+                  <PriceTrendChart itemName={selectedItem.name} series={analysis.series} />
                 ) : (
-                  <Alert severity="info">Select an inventory item to view its price trend.</Alert>
+                  <Alert severity="info">Select an item to view store price trends.</Alert>
                 )}
               </Stack>
             </CardContent>
@@ -255,24 +320,41 @@ export default function PriceHistoryPage() {
             <CardContent>
               <Stack spacing={2}>
                 <Typography variant="h6">Store Comparison</Typography>
+                <Autocomplete
+                  options={comparisonStores}
+                  value={selectedStore}
+                  onChange={(_, value) => setSelectedStore(value)}
+                  isOptionEqualToValue={(option, value) => String(option.id) === String(value.id)}
+                  getOptionLabel={(option) => option.name || ''}
+                  renderInput={(params) => <TextField {...params} label="Compare store" />}
+                />
                 <Typography variant="body2" color="text.secondary">
-                  This leaderboard highlights the best and worst recorded prices for the selected item.
+                  This compares the latest recorded price for the selected item at each store.
                 </Typography>
                 {!selectedItem ? (
                   <Alert severity="info">Choose an item first to compare store pricing.</Alert>
+                ) : !storeSummaries.length ? (
+                  <Alert severity="info">No store-specific purchase history exists for this item yet.</Alert>
                 ) : (
                   <Grid container spacing={2}>
                     <Grid size={{ xs: 12, md: 4 }}>
-                      <Card variant="outlined">
+                        <Card variant="outlined">
                         <CardContent>
                           <Typography variant="overline" color="success.main">
-                            Best Price Found
+                            Lowest Latest Price
                           </Typography>
                           <Typography variant="h6">
-                            {analysis.bestPrice?.store?.name || 'No store data'}
+                            {analysis.bestStore?.store?.name || 'No store data'}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            {analysis.bestPrice ? formatCurrency(analysis.bestPrice.actual_price) : 'No purchases yet'}
+                            {analysis.bestStore?.latestRecord?.price != null
+                              ? formatCurrency(analysis.bestStore.latestRecord.price)
+                              : 'No purchases yet'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {analysis.bestStore?.latestRecord
+                              ? `Last updated ${formatRecordDate(analysis.bestStore.latestRecord.timestamp)}`
+                              : ''}
                           </Typography>
                         </CardContent>
                       </Card>
@@ -280,12 +362,21 @@ export default function PriceHistoryPage() {
                     <Grid size={{ xs: 12, md: 4 }}>
                       <Card variant="outlined">
                         <CardContent>
-                          <Typography variant="overline">Average Price</Typography>
+                          <Typography variant="overline">Selected Store Latest</Typography>
                           <Typography variant="h6">
-                            {analysis.averagePrice != null ? formatCurrency(analysis.averagePrice) : 'No purchases yet'}
+                            {selectedStore?.name || 'No store selected'}
+                          </Typography>
+                          <Typography variant="h6">
+                            {analysis.selectedStoreSummary?.latestRecord?.price != null
+                              ? formatCurrency(analysis.selectedStoreSummary.latestRecord.price)
+                              : 'No purchases yet'}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            Based on the last 6 months of recorded actual prices.
+                            {selectedStore
+                              ? analysis.selectedStoreSummary?.latestRecord
+                                ? `Last updated ${formatRecordDate(analysis.selectedStoreSummary.latestRecord.timestamp)}`
+                                : `No recent price for ${selectedStore.name}.`
+                              : 'Select a store to inspect its latest price.'}
                           </Typography>
                         </CardContent>
                       </Card>
@@ -294,13 +385,20 @@ export default function PriceHistoryPage() {
                       <Card variant="outlined">
                         <CardContent>
                           <Typography variant="overline" color="error.main">
-                            Worst Price
+                            Highest Latest Price
                           </Typography>
                           <Typography variant="h6">
-                            {analysis.worstPrice?.store?.name || 'No store data'}
+                            {analysis.worstStore?.store?.name || 'No store data'}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            {analysis.worstPrice ? formatCurrency(analysis.worstPrice.actual_price) : 'No purchases yet'}
+                            {analysis.worstStore?.latestRecord?.price != null
+                              ? formatCurrency(analysis.worstStore.latestRecord.price)
+                              : 'No purchases yet'}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {analysis.worstStore?.latestRecord
+                              ? `Last updated ${formatRecordDate(analysis.worstStore.latestRecord.timestamp)}`
+                              : ''}
                           </Typography>
                         </CardContent>
                       </Card>
