@@ -9,7 +9,6 @@ import {
   Typography,
 } from '@mui/material';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded';
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import QrCodeScannerRoundedIcon from '@mui/icons-material/QrCodeScannerRounded';
 import InventoryRoundedIcon from '@mui/icons-material/InventoryRounded';
@@ -19,6 +18,7 @@ import { formatCurrency } from '../../../../utils/formatCurrency';
 import { db, queueMutation } from '../../../../lib/db';
 import { apiClient } from '../../../../api/client';
 import CategorySelector from '../../../../components/CategorySelector';
+import QuantitySelector from '../../../../components/QuantitySelector';
 
 
 
@@ -188,37 +188,11 @@ export default function UnplannedItemForm({
               />
 
               <Stack direction="row" alignItems="center" justifyContent="space-between">
-                <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mr: 2 }}>
-                  <IconButton
-                    size="small"
-                    onClick={() => updateDraft({ quantity: Math.max(1, unplannedDraft.quantity - 1) })}
-                    sx={{
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderRadius: 1,
-                      width: 30,
-                      height: 30,
-                    }}
-                  >
-                    <RemoveRoundedIcon fontSize="small" />
-                  </IconButton>
-                  <Typography variant="body1" fontWeight={700} minWidth={28} textAlign="center">
-                    {unplannedDraft.quantity}
-                  </Typography>
-                  <IconButton
-                    size="small"
-                    onClick={() => updateDraft({ quantity: unplannedDraft.quantity + 1 })}
-                    sx={{
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderRadius: 1,
-                      width: 30,
-                      height: 30,
-                    }}
-                  >
-                    <AddRoundedIcon fontSize="small" />
-                  </IconButton>
-                </Stack>
+                <QuantitySelector
+                  value={unplannedDraft.quantity}
+                  onChange={(val) => updateDraft({ quantity: val })}
+                  sx={{ mr: 2 }}
+                />
 
                 {/* Price */}
                 <TextField

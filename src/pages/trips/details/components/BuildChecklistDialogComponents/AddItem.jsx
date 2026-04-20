@@ -1,6 +1,7 @@
-import { Autocomplete, Button, Card, CardContent, Grid, Stack, TextField, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { Autocomplete, Box, Button, Card, CardContent, Grid, Stack, TextField, Typography, useMediaQuery, useTheme } from '@mui/material';
 import AddBoxRoundedIcon from '@mui/icons-material/AddBoxRounded';
 import { formatCurrency } from '../../../../../utils/formatCurrency';
+import QuantitySelector from '../../../../../components/QuantitySelector';
 
 function getInventoryLabel(option) {
   if (typeof option === 'string') {
@@ -24,7 +25,7 @@ export default function AddItem({ inventoryData, addDraft, setAddDraft, handleAd
               Choose from inventory or type custom entry.
             </Typography>
           </Stack>
-          <Grid container spacing={2} alignItems="flex-end">
+          <Grid container spacing={2}>
             <Grid size={{ xs: 12, md: 6 }}>
               <Autocomplete
                 freeSolo
@@ -81,23 +82,21 @@ export default function AddItem({ inventoryData, addDraft, setAddDraft, handleAd
                 size="small"
               />
             </Grid>
-            <Grid size={{ xs: 6, md: 2 }}>
-              <TextField
-                fullWidth
-                label="Qty"
-                type="number"
+            <Grid size={{ xs: 12, md: 1.6 }} sx={{ mt: { md: "-20px" } }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, ml: 0.5 }}>
+                Quantity
+              </Typography>
+              <QuantitySelector
                 value={addDraft.quantity}
-                onChange={(event) =>
-                  setAddDraft((current) => ({
-                    ...current,
-                    quantity: Math.max(1, Number(event.target.value || 1))
-                  }))
+                onChange={(val) => 
+                    setAddDraft((current) => ({
+                      ...current,
+                      quantity: val
+                    }))
                 }
-                inputProps={{ min: 1 }}
-                size="small"
               />
             </Grid>
-            <Grid size={{ xs: 6, md: 3 }}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
                 label="Price"

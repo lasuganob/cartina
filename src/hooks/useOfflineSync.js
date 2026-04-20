@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { apiClient } from '../api/client';
 import { db } from '../lib/db';
+import { useAppContext } from '../context/AppContext';
 
 let inFlightQueueSync = null;
 
@@ -189,7 +190,8 @@ async function reconcileReplacedChecklist(tripId, localItems, syncedItems) {
   });
 }
 
-export async function processQueue() {
+export async function processQueue(options = {}) {
+  const { onConflict } = options;
   if (inFlightQueueSync) {
     return inFlightQueueSync;
   }
@@ -199,36 +201,26 @@ export async function processQueue() {
 
     for (const item of pendingItems) {
       try {
+        let response;
         if (item.entity === 'trips' && item.action === 'create') {
-          const response = await apiClient.createTrip(item.payload);
+          response = await apiClient.createTrip(item.payload);
           await reconcileCreatedTrip(item.payload, response.item);
-        }
-
-        if (item.entity === 'trips' && item.action === 'update') {
-          await apiClient.updateTrip(item.payload);
-        }
-
-        if (item.entity === 'tripChecklist' && item.action === 'replace') {
-          const response = await apiClient.replaceTripChecklist(item.payload);
-          await reconcileReplacedChecklist(item.payload.trip_id, item.payload.items, response.items);
-        }
-
-        if (item.entity === 'inventoryItems' && item.action === 'create') {
-          const response = await apiClient.createInventoryItem(item.payload);
+        } else if (item.entity === 'trips' && item.action === 'update') {
+          response = await apiClient.updateTrip(item.payload);
+        } else if (item.entity === 'tripChecklist' && item.action === 'replace') {
+          response = await apiClient.replaceTripChecklist(item.payload);
+          if (response && !response.conflict) {
+            await reconcileReplacedChecklist(item.payload.trip_id, item.payload.items, response.items);
+          }
+        } else if (item.entity === 'inventoryItems' && item.action === 'create') {
+          response = await apiClient.createInventoryItem(item.payload);
           await reconcileCreatedInventoryItem(item.payload, response.item);
-        }
-
-        if (item.entity === 'inventoryItems' && item.action === 'update') {
-          await apiClient.updateInventoryItem(item.payload);
-        }
-
-        if (item.entity === 'inventoryItems' && item.action === 'delete') {
-          await apiClient.deleteInventoryItem(item.payload);
-        }
-
-        // Stores
-        if (item.entity === 'stores' && item.action === 'create') {
-          const response = await apiClient.createStore(item.payload);
+        } else if (item.entity === 'inventoryItems' && item.action === 'update') {
+          response = await apiClient.updateInventoryItem(item.payload);
+        } else if (item.entity === 'inventoryItems' && item.action === 'delete') {
+          response = await apiClient.deleteInventoryItem(item.payload);
+        } else if (item.entity === 'stores' && item.action === 'create') {
+          response = await apiClient.createStore(item.payload);
           if (response.item?.id && String(response.item.id) !== String(item.payload.id)) {
              await db.transaction('rw', db.stores, db.trips, async () => {
                await db.stores.delete(item.payload.id);
@@ -236,17 +228,12 @@ export async function processQueue() {
                await db.trips.where('store_id').equals(item.payload.id).modify({ store_id: response.item.id });
              });
           }
-        }
-        if (item.entity === 'stores' && item.action === 'update') {
-          await apiClient.updateStore(item.payload);
-        }
-        if (item.entity === 'stores' && item.action === 'delete') {
-          await apiClient.deleteStore(item.payload);
-        }
-
-        // Categories
-        if (item.entity === 'categories' && item.action === 'create') {
-          const response = await apiClient.createCategory(item.payload);
+        } else if (item.entity === 'stores' && item.action === 'update') {
+          response = await apiClient.updateStore(item.payload);
+        } else if (item.entity === 'stores' && item.action === 'delete') {
+          response = await apiClient.deleteStore(item.payload);
+        } else if (item.entity === 'categories' && item.action === 'create') {
+          response = await apiClient.createCategory(item.payload);
           if (response.item?.id && String(response.item.id) !== String(item.payload.id)) {
             await db.transaction('rw', db.categories, db.inventoryItems, async () => {
               await db.categories.delete(item.payload.id);
@@ -254,12 +241,31 @@ export async function processQueue() {
               await db.inventoryItems.where('category_id').equals(item.payload.id).modify({ category_id: response.item.id });
             });
           }
+        } else if (item.entity === 'categories' && item.action === 'update') {
+          response = await apiClient.updateCategory(item.payload);
+        } else if (item.entity === 'categories' && item.action === 'delete') {
+          response = await apiClient.deleteCategory(item.payload);
         }
-        if (item.entity === 'categories' && item.action === 'update') {
-          await apiClient.updateCategory(item.payload);
-        }
-        if (item.entity === 'categories' && item.action === 'delete') {
-          await apiClient.deleteCategory(item.payload);
+
+        if (response && response.conflict && onConflict) {
+          const remoteData = response.remote_trip || response.remote_item;
+          const choice = await onConflict(item.entity, item.payload, remoteData);
+          
+          if (choice === 'remote') {
+            // REMOTE WINS: Overwrite local with remote and mark as synced
+            if (item.entity === 'trips') await db.trips.put(remoteData);
+            if (item.entity === 'inventoryItems') await db.inventoryItems.put(remoteData);
+            if (item.entity === 'stores') await db.stores.put(remoteData);
+            if (item.entity === 'categories') await db.categories.put(remoteData);
+            
+            await db.syncQueue.update(item.id, { status: 'synced' });
+            continue;
+          } else {
+            // LOCAL WINS: Update local "base_updated_at" to match remote so next push succeeds
+            const nextPayload = { ...item.payload, updated_at: remoteData.updated_at };
+            await db.syncQueue.update(item.id, { payload: nextPayload });
+            throw new Error('Conflict resolved to Local. Please try syncing again to overwrite Cloud.');
+          }
         }
 
         await db.syncQueue.update(item.id, { status: 'synced' });
@@ -287,6 +293,8 @@ async function pullAndMerge() {
     apiClient.getCategories(),
   ]);
 
+  const needsFullPull = localStorage.getItem('cartina:needs_full_pull') === 'true';
+
   // Collect IDs of locally-pending items — these must NOT be overwritten
   const pendingQueue = await db.syncQueue
     .where('status').anyOf(['pending', 'failed'])
@@ -302,18 +310,62 @@ async function pullAndMerge() {
   const safeItems = (items, pendingSet) =>
     (items || []).filter(item => !pendingSet.has(String(item.id)));
 
-  await db.transaction('rw', db.trips, db.inventoryItems, db.stores, db.categories, async () => {
+  await db.transaction('rw', db.trips, db.inventoryItems, db.stores, db.categories, db.tripChecklist, async () => {
+    // 1. Handle Trips
     if (tripsRes?.items) {
+      if (needsFullPull) await db.trips.clear();
       await db.trips.bulkPut(safeItems(tripsRes.items, pendingIds.trips));
     }
+
+    // 2. Handle Trip Checklist (Essential fix!)
+    if (tripsRes?.trip_checklist) {
+      const remoteChecklist = tripsRes.trip_checklist;
+      
+      if (needsFullPull) {
+        await db.tripChecklist.clear();
+        await db.tripChecklist.bulkPut(remoteChecklist);
+      } else {
+        // Only update checklist items for trips that don't have pending changes
+        const pendingTripChecklistIds = new Set(
+          pendingQueue.filter(q => q.entity === 'tripChecklist').map(q => String(q.payload?.trip_id))
+        );
+
+        const remoteGroups = remoteChecklist.reduce((acc, item) => {
+          acc[item.trip_id] = acc[item.trip_id] || [];
+          acc[item.trip_id].push(item);
+          return acc;
+        }, {});
+
+        for (const [tripId, items] of Object.entries(remoteGroups)) {
+          if (!pendingTripChecklistIds.has(String(tripId))) {
+            await db.tripChecklist.where('trip_id').equals(Number(tripId)).delete();
+            await db.tripChecklist.bulkPut(items);
+          }
+        }
+      }
+    }
+
+    // 3. Handle Inventory Items
     if (inventoryRes?.items) {
+      if (needsFullPull) await db.inventoryItems.clear();
       await db.inventoryItems.bulkPut(safeItems(inventoryRes.items, pendingIds.inventoryItems));
     }
+
+    // 4. Handle Stores
     if (storesRes?.items) {
+      if (needsFullPull) await db.stores.clear();
       await db.stores.bulkPut(safeItems(storesRes.items, pendingIds.stores));
     }
+
+    // 5. Handle Categories
     if (categoriesRes?.items) {
+      if (needsFullPull) await db.categories.clear();
       await db.categories.bulkPut(safeItems(categoriesRes.items, pendingIds.categories));
+    }
+
+    // Clear the full pull flag after successful transaction
+    if (needsFullPull) {
+      localStorage.removeItem('cartina:needs_full_pull');
     }
   });
 }
@@ -323,8 +375,8 @@ async function pullAndMerge() {
  *   1. Push all pending local changes to Google Sheets
  *   2. Pull canonical data from Google Sheets and merge locally
  */
-export async function syncBidirectional() {
-  await processQueue();
+export async function syncBidirectional(options = {}) {
+  await processQueue(options);
   await pullAndMerge();
 }
 
@@ -338,6 +390,7 @@ export async function getPendingCount() {
 const LAST_SYNCED_KEY = 'cartina:lastSynced';
 
 export function useOfflineSync() {
+  const { showConflict } = useAppContext() || {};
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState(() => localStorage.getItem(LAST_SYNCED_KEY));
@@ -380,7 +433,15 @@ export function useOfflineSync() {
     setSyncError(null);
     setIsSyncing(true);
     try {
-      await syncBidirectional();
+      await syncBidirectional({
+        onConflict: async (entityName, localData, remoteData) => {
+          return new Promise((resolve) => {
+             showConflict(entityName, localData, remoteData, (choice) => {
+                resolve(choice);
+             });
+          });
+        }
+      });
       const ts = new Date().toISOString();
       localStorage.setItem(LAST_SYNCED_KEY, ts);
       setLastSynced(ts);

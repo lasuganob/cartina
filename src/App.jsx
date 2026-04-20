@@ -5,10 +5,11 @@ import { useAppContext } from './context/AppContext';
 import { useThemeMode } from './hooks/useThemeMode';
 import { useOfflineSync } from './hooks/useOfflineSync';
 import AppRouter from './router';
+import SyncConflictDialog from './components/SyncConflictDialog';
 
 export default function App() {
   const { theme } = useThemeMode();
-  const { snackbar, hideSnackbar, setSyncState } = useAppContext();
+  const { snackbar, hideSnackbar, setSyncState, conflict, resolveConflict } = useAppContext();
   const sync = useOfflineSync();
 
   // Bridge the hook values into context so layouts can read them
@@ -30,6 +31,15 @@ export default function App() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+      {conflict && (
+        <SyncConflictDialog
+          open={!!conflict}
+          entityName={conflict.entityName}
+          localData={conflict.localData}
+          remoteData={conflict.remoteData || conflict.remote_trip || conflict.remote_item}
+          onResolve={resolveConflict}
+        />
+      )}
     </ThemeProvider>
   );
 }

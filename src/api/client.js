@@ -100,7 +100,10 @@ export const apiClient = {
   updateTrip(payload) {
     return request('/trips/update', {
       method: 'POST',
-      body: payload
+      body: {
+        ...payload,
+        base_updated_at: payload.updated_at
+      }
     });
   },
   createInventoryItem(payload) {
@@ -112,19 +115,28 @@ export const apiClient = {
   updateInventoryItem(payload) {
     return request('/inventory-items/update', {
       method: 'POST',
-      body: payload
+      body: {
+        ...payload,
+        base_updated_at: payload.updated_at
+      }
     });
   },
   deleteInventoryItem(payload) {
     return request('/inventory-items/delete', {
       method: 'POST',
-      body: payload
+      body: {
+        ...payload,
+        base_updated_at: payload.updated_at
+      }
     });
   },
   replaceTripChecklist(payload) {
     return request('/trip-checklist/replace', {
       method: 'POST',
-      body: payload
+      body: {
+        ...payload,
+        base_updated_at: payload.base_updated_at
+      }
     });
   },
   // Stores
@@ -137,13 +149,19 @@ export const apiClient = {
   updateStore(payload) {
     return request('/stores/update', {
       method: 'POST',
-      body: payload
+      body: {
+        ...payload,
+        base_updated_at: payload.updated_at
+      }
     });
   },
   deleteStore(payload) {
     return request('/stores/delete', {
       method: 'POST',
-      body: payload
+      body: {
+        ...payload,
+        base_updated_at: payload.updated_at
+      }
     });
   },
   // Categories
@@ -156,13 +174,19 @@ export const apiClient = {
   updateCategory(payload) {
     return request('/categories/update', {
       method: 'POST',
-      body: payload
+      body: {
+        ...payload,
+        base_updated_at: payload.updated_at
+      }
     });
   },
   deleteCategory(payload) {
     return request('/categories/delete', {
       method: 'POST',
-      body: payload
+      body: {
+        ...payload,
+        base_updated_at: payload.updated_at
+      }
     });
   }
 };

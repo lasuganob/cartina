@@ -9,6 +9,8 @@ export function AppProvider({ children }) {
     severity: 'info'
   });
 
+  const [conflict, setConflict] = useState(null);
+
   // Sync state — lifted here so both layouts (Desktop + Mobile) can read it
   // without each mounting a separate useOfflineSync instance.
   // The actual hook instance lives in App.jsx and passes values down via context.
@@ -33,8 +35,19 @@ export function AppProvider({ children }) {
       // Sync
       syncState,
       setSyncState,
+      // Conflict resolution
+      conflict,
+      showConflict(entityName, localData, remoteData, resolve) {
+        setConflict({ entityName, localData, remoteData, resolve });
+      },
+      resolveConflict(choice) {
+        if (conflict?.resolve) {
+          conflict.resolve(choice);
+        }
+        setConflict(null);
+      }
     }),
-    [snackbar, syncState]
+    [snackbar, syncState, conflict]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

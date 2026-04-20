@@ -180,7 +180,7 @@ export default function ShoppingProgressNav({
                   fullWidth
                   variant="contained"
                   onClick={handleCheckout}
-                  disabled={busy || !draftItemsLength}
+                  disabled={busy || metrics.checkedCount === 0}
                   startIcon={<CheckCircleRoundedIcon />}
                   sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
                 >

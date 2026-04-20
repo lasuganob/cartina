@@ -19,7 +19,9 @@ function normalizeTrip(trip) {
     completed_at: trip.completed_at || '',
     started_at: trip.started_at || '',
     archived_at: trip.archived_at || '',
-    elapsed_ms: Math.max(0, Number(trip.elapsed_ms || 0))
+    elapsed_ms: trip.elapsed_ms === '' || trip.elapsed_ms === null || trip.elapsed_ms === undefined
+      ? ''
+      : Math.max(0, Number(trip.elapsed_ms))
   };
 }
 
@@ -253,8 +255,7 @@ export function useTrips() {
       id: tripId,
       ...values,
       status: 'planned',
-      created_at: new Date().toISOString(),
-      completed_at: ''
+      created_at: new Date().toISOString()
     });
 
     await db.trips.put(trip);

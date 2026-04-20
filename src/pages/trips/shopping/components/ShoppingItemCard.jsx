@@ -6,7 +6,6 @@ import {
   CardActionArea,
   CardContent,
   Chip,
-  IconButton,
   InputAdornment,
   Stack,
   SwipeableDrawer,
@@ -14,11 +13,10 @@ import {
   Typography,
   Button,
 } from '@mui/material';
-import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import RemoveRoundedIcon from '@mui/icons-material/RemoveRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import { formatCurrency } from '../../../../utils/formatCurrency';
+import QuantitySelector from '../../../../components/QuantitySelector';
 
 export default function ShoppingItemCard({ item, index, onChange, open, onOpen, onClose, scannerStatus }) {
   const [actualPriceError, setActualPriceError] = useState('');
@@ -176,37 +174,11 @@ export default function ShoppingItemCard({ item, index, onChange, open, onOpen, 
           <Stack spacing={2}>
             {/* Qty incrementor/decrementor */}
             <Stack direction="row" alignItems="center" justifyContent="space-between">
-              <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mr: 2 }}>
-                <IconButton
-                  size="small"
-                  onClick={() => onChange({ quantity: Math.max(1, item.quantity - 1) })}
-                  sx={{
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 1,
-                    width: 30,
-                    height: 30,
-                  }}
-                >
-                  <RemoveRoundedIcon fontSize="small" />
-                </IconButton>
-                <Typography variant="body1" fontWeight={700} minWidth={28} textAlign="center">
-                  {item.quantity}
-                </Typography>
-                <IconButton
-                  size="small"
-                  onClick={() => onChange({ quantity: item.quantity + 1 })}
-                  sx={{
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 1,
-                    width: 30,
-                    height: 30,
-                  }}
-                >
-                  <AddRoundedIcon fontSize="small" />
-                </IconButton>
-              </Stack>
+              <QuantitySelector
+                value={item.quantity}
+                onChange={(val) => onChange({ quantity: val })}
+                sx={{ mr: 2 }}
+              />
               <TextField
                 label="Actual Price"
                 size="small"

@@ -15,6 +15,7 @@ const TRIP_HEADERS = [
   "store_id",
   "note",
   "created_at",
+  "updated_at",
   "started_at",
   "elapsed_ms",
   "completed_at",
@@ -29,10 +30,11 @@ const INVENTORY_HEADERS = [
   "barcode",
   "has_no_barcode",
   "created_at",
+  "updated_at",
 ];
 
-const STORE_HEADERS = ["id", "name", "logo_path"];
-const CATEGORY_HEADERS = ["id", "name"];
+const STORE_HEADERS = ["id", "name", "logo_path", "updated_at"];
+const CATEGORY_HEADERS = ["id", "name", "updated_at"];
 const TRIP_CHECKLIST_HEADERS = [
   "id",
   "trip_id",
@@ -267,6 +269,17 @@ function replaceTripChecklist_(payload) {
     throw new Error("trip_id is required.");
   }
 
+  var tripsSheet = getOrCreateSheet_(SHEET_NAMES.trips, TRIP_HEADERS);
+  var tripsValues = getSheetValues_(tripsSheet);
+  var tripMatch = findRowById_(tripsValues, payload.trip_id);
+  
+  if (tripMatch) {
+    var tripRecord = mapRowToObject_(tripsValues[0], tripMatch.row);
+    if (payload.base_updated_at && String(tripRecord.updated_at) !== String(payload.base_updated_at)) {
+      return { success: false, conflict: true, remote_trip: tripRecord };
+    }
+  }
+
   var items = Array.isArray(payload.items) ? payload.items : [];
   var headers = TRIP_CHECKLIST_HEADERS;
   var sheet = getOrCreateSheet_(SHEET_NAMES.tripChecklist, headers);
@@ -301,6 +314,14 @@ function replaceTripChecklist_(payload) {
     return toOrderedRow_(headers, item);
   });
   rewriteSheetBody_(sheet, headers, preservedRows.concat(rows));
+
+  // Update trip's updated_at
+  if (tripMatch) {
+    var updatedTrip = buildTripRecord_({}, tripRecord);
+    tripsSheet
+      .getRange(tripMatch.rowIndex + 1, 1, 1, TRIP_HEADERS.length)
+      .setValues([toOrderedRow_(TRIP_HEADERS, updatedTrip)]);
+  }
 
   return normalizedItems;
 }
@@ -359,6 +380,7 @@ function createStore_(payload) {
     id: resolveRowId_(sheet, STORE_HEADERS, payload.id),
     name: payload.name || "",
     logo_path: payload.logo_path || "",
+    updated_at: new Date().toISOString(),
   };
   appendRecord_(sheet, STORE_HEADERS, item);
   return item;
@@ -377,6 +399,7 @@ function createCategory_(payload) {
   const item = {
     id: resolveRowId_(sheet, CATEGORY_HEADERS, payload.id),
     name: payload.name || "",
+    updated_at: new Date().toISOString(),
   };
   appendRecord_(sheet, CATEGORY_HEADERS, item);
   return item;
@@ -525,7 +548,11 @@ function handleRequest_(routes, e, payload) {
       return jsonResponse_({ success: false, message: "Route not found." });
     }
 
-    return jsonResponse_(handler(e, payload));
+    var response = handler(e, payload);
+    if (response && response.conflict) {
+       return jsonResponse_({ success: false, conflict: true, message: "Conflict detected: remote data has been updated by another device.", ...response });
+    }
+    return jsonResponse_(response);
   } catch (error) {
     return jsonResponse_({ success: false, message: error.message });
   }
@@ -597,12 +624,13 @@ function buildTripRecord_(payload, existingTrip) {
     store_id: payload.store_id != null ? payload.store_id : trip.store_id || "",
     note: payload.note != null ? payload.note : trip.note || "",
     created_at: payload.created_at || trip.created_at || new Date().toISOString(),
-    started_at:
-      payload.started_at != null ? payload.started_at : trip.started_at || "",
-    elapsed_ms: Math.max(
-      0,
-      Number(payload.elapsed_ms != null ? payload.elapsed_ms : trip.elapsed_ms || 0),
-    ),
+    updated_at: new Date().toISOString(),
+    started_at: payload.started_at || trip.started_at || "",
+    elapsed_ms: (payload.elapsed_ms != null && payload.elapsed_ms !== "") 
+      ? Math.max(0, Number(payload.elapsed_ms))
+      : (trip.elapsed_ms != null && trip.elapsed_ms !== "") 
+        ? Math.max(0, Number(trip.elapsed_ms))
+        : "",
     completed_at:
       payload.completed_at != null
         ? payload.completed_at
@@ -659,6 +687,7 @@ function buildInventoryItemRecord_(payload, existingItem) {
         ? payload.has_no_barcode === true || payload.has_no_barcode === "true"
         : item.has_no_barcode === true || item.has_no_barcode === "true",
     created_at: payload.created_at || item.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
 }
 
@@ -676,6 +705,11 @@ function updateSheetRecord_(sheetName, headers, payload, notFoundMessage, buildR
   }
 
   var existingRecord = mapRowToObject_(values[0], rowMatch.row);
+  
+  if (payload.base_updated_at && String(existingRecord.updated_at) !== String(payload.base_updated_at)) {
+     return { success: false, conflict: true, remote_item: existingRecord };
+  }
+
   var updatedRecord = buildRecord
     ? buildRecord(payload, existingRecord)
     : { ...existingRecord, ...payload };
@@ -698,6 +732,11 @@ function deleteSheetRecord_(sheetName, headers, payload, notFoundMessage) {
 
   if (!rowMatch) {
     throw new Error(notFoundMessage || "Record not found.");
+  }
+
+  var existingRecord = mapRowToObject_(values[0], rowMatch.row);
+  if (payload.base_updated_at && String(existingRecord.updated_at) !== String(payload.base_updated_at)) {
+     return { success: false, conflict: true, remote_item: existingRecord };
   }
 
   sheet.deleteRow(rowMatch.rowIndex + 1);

@@ -55,6 +55,9 @@ export default function SettingsDialog({ open, onClose }) {
         });
 
         window.localStorage.clear();
+        // Set a flag so the next sync knows to perform a full "Remote Wins" pull
+        window.localStorage.setItem('cartina:needs_full_pull', 'true');
+        
         navigate('/');
       } catch (error) {
         console.error('Failed to clear data:', error);

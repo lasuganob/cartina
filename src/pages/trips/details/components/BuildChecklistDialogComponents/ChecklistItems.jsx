@@ -17,6 +17,7 @@ import {
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import { formatCurrency } from '../../../../../utils/formatCurrency';
 import CategorySelector from '../../../../../components/CategorySelector';
+import QuantitySelector from '../../../../../components/QuantitySelector';
 
 export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
   const theme = useTheme();
@@ -74,6 +75,23 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
                       </Stack>
 
                       <Grid container spacing={1.5}>
+                        <Grid size={{ xs: 12, md: 1.7 }} sx={{ mt: { md: "-20px" }  }}>
+                          <Box>
+                            {!isMobile && (
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                                Quantity
+                              </Typography>
+                            )}
+                            <QuantitySelector
+                              value={item.quantity}
+                              onChange={(val) => 
+                                updateItem(index, {
+                                  quantity: val
+                                })
+                              }
+                            />
+                          </Box>
+                        </Grid>
                         <Grid size={{ xs: 12, md: 4 }}>
                           <TextField
                             fullWidth
@@ -100,25 +118,10 @@ export default function ChecklistItems({ draftItems, updateItem, removeItem }) {
                             />
                           </Grid>
                         )}
-                        <Grid size={{ xs: 3, md: 2 }}>
+                        <Grid size={{ xs: 12, md: 2 }}>
                           <TextField
                             fullWidth
-                            label="Qty"
-                            type="number"
-                            value={item.quantity}
-                            onChange={(event) =>
-                              updateItem(index, {
-                                quantity: Math.max(1, Number(event.target.value || 1))
-                              })
-                            }
-                            inputProps={{ min: 1 }}
-                            size="small"
-                          />
-                        </Grid>
-                        <Grid size={{ xs: 9, md: 2 }}>
-                          <TextField
-                            fullWidth
-                            label={isMobile ? "Planned" : "Planned Price"}
+                            label={isMobile ? "Planned Price" : "Planned Price"}
                             type="number"
                             value={item.planned_price}
                             onChange={(event) =>

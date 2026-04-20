@@ -153,11 +153,14 @@ export default function TripShoppingPage() {
     const storedSession = window.localStorage.getItem(getShoppingSessionKey(trip.id));
     const parsedSession = storedSession ? JSON.parse(storedSession) : null;
 
+    const isRunning = parsedSession ? !!parsedSession.isRunning : trip.status === 'in_progress';
+    const startedAt = parsedSession?.startedAt || trip.started_at || '';
+
     setSessionState({
       elapsedMs: Math.max(0, Number(parsedSession?.elapsedMs ?? trip.elapsed_ms ?? 0)),
-      isRunning: parsedSession ? !!parsedSession.isRunning : true,
-      lastStartedAt: (parsedSession?.isRunning ?? true) ? Date.now() : null,
-      startedAt: parsedSession?.startedAt || trip.started_at || nowIso
+      isRunning,
+      lastStartedAt: isRunning ? Date.now() : null,
+      startedAt
     });
   }, [trip]);
 
@@ -262,11 +265,13 @@ export default function TripShoppingPage() {
         sync: true,
         notify: false
       });
+      const hasActivity = current.sessionState.isRunning || current.draftItems.some(i => i.is_purchased);
+      
       void updateTripRef.current(current.tripId, {
-        status: 'in_progress',
-        started_at: current.startedAt || new Date().toISOString(),
+        status: hasActivity ? 'in_progress' : (trip?.status || 'planned'),
+        started_at: hasActivity ? (current.startedAt || new Date().toISOString()) : (trip?.started_at || ''),
         elapsed_ms: nextElapsedMs,
-        completed_at: ''
+        completed_at: trip?.completed_at || ''
       });
     }
 
