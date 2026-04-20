@@ -489,7 +489,7 @@ function resolveRowId_(sheet, headers, candidateId) {
   }
 
   var values = getSheetValues_(sheet);
-  return getNextNumericId_(values, headers);
+  return getNextNumericId_(values, values[0] || headers);
 }
 
 function normalizeRowId_(value) {
@@ -592,17 +592,46 @@ function toOrderedRow_(headers, record) {
 }
 
 function appendRecord_(sheet, headers, record) {
-  sheet.appendRow(toOrderedRow_(headers, record));
+  var values = getSheetValues_(sheet);
+  var sheetHeaders = values[0] && values[0].length ? values[0] : headers;
+  sheet.appendRow(toOrderedRow_(sheetHeaders, record));
 }
 
 function getNextSheetId_(sheetName, headers) {
   var sheet = getOrCreateSheet_(sheetName, headers);
-  return getNextNumericId_(getSheetValues_(sheet), headers);
+  var values = getSheetValues_(sheet);
+  return getNextNumericId_(values, values[0] || headers);
 }
 
 function resolveSequentialId_(candidateId, createId) {
   var normalizedId = normalizeRowId_(candidateId);
   return normalizedId !== "" ? normalizedId : createId();
+}
+
+function resolveTripTextField_(value, fallback) {
+  return value != null ? value : fallback || "";
+}
+
+function normalizeElapsedMs_(value, fallback) {
+  if (value === "") {
+    return "";
+  }
+
+  if (value != null) {
+    var numericValue = Number(value);
+    return Number.isFinite(numericValue) ? Math.max(0, numericValue) : "";
+  }
+
+  if (fallback === "") {
+    return "";
+  }
+
+  if (fallback != null) {
+    var numericFallback = Number(fallback);
+    return Number.isFinite(numericFallback) ? Math.max(0, numericFallback) : "";
+  }
+
+  return "";
 }
 
 function buildTripRecord_(payload, existingTrip) {
@@ -623,18 +652,14 @@ function buildTripRecord_(payload, existingTrip) {
     status: payload.status != null ? payload.status : trip.status || "planned",
     store_id: payload.store_id != null ? payload.store_id : trip.store_id || "",
     note: payload.note != null ? payload.note : trip.note || "",
-    created_at: payload.created_at || trip.created_at || new Date().toISOString(),
+    created_at: resolveTripTextField_(payload.created_at, trip.created_at || new Date().toISOString()),
     updated_at: new Date().toISOString(),
-    started_at: payload.started_at || trip.started_at || "",
-    elapsed_ms: (payload.elapsed_ms != null && payload.elapsed_ms !== "") 
-      ? Math.max(0, Number(payload.elapsed_ms))
-      : (trip.elapsed_ms != null && trip.elapsed_ms !== "") 
-        ? Math.max(0, Number(trip.elapsed_ms))
-        : "",
+    started_at: resolveTripTextField_(payload.started_at, trip.started_at || ""),
+    elapsed_ms: normalizeElapsedMs_(payload.elapsed_ms, trip.elapsed_ms || ""),
     completed_at:
       payload.completed_at != null
         ? payload.completed_at
-        : trip.completed_at || "",
+      : trip.completed_at || "",
     archived_at:
       payload.archived_at != null ? payload.archived_at : trip.archived_at || "",
   };
@@ -698,13 +723,14 @@ function updateSheetRecord_(sheetName, headers, payload, notFoundMessage, buildR
 
   var sheet = getOrCreateSheet_(sheetName, headers);
   var values = getSheetValues_(sheet);
+  var sheetHeaders = values[0] || headers;
   var rowMatch = findRowById_(values, payload.id);
 
   if (!rowMatch) {
     throw new Error(notFoundMessage || "Record not found.");
   }
 
-  var existingRecord = mapRowToObject_(values[0], rowMatch.row);
+  var existingRecord = mapRowToObject_(sheetHeaders, rowMatch.row);
   
   if (payload.base_updated_at && String(existingRecord.updated_at) !== String(payload.base_updated_at)) {
      return { success: false, conflict: true, remote_item: existingRecord };
@@ -715,8 +741,8 @@ function updateSheetRecord_(sheetName, headers, payload, notFoundMessage, buildR
     : { ...existingRecord, ...payload };
 
   sheet
-    .getRange(rowMatch.rowIndex + 1, 1, 1, headers.length)
-    .setValues([toOrderedRow_(headers, updatedRecord)]);
+    .getRange(rowMatch.rowIndex + 1, 1, 1, sheetHeaders.length)
+    .setValues([toOrderedRow_(sheetHeaders, updatedRecord)]);
 
   return updatedRecord;
 }
