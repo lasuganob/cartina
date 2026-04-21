@@ -147,35 +147,21 @@ export default function ShoppingProgressNav({
             </Grid>
 
             <Grid container spacing={1.5}>
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid size={{ xs: 5 }}>
                 <Button
                   fullWidth
                   variant="outlined"
-                  onClick={handleBackToTrip}
+                  onClick={handlePauseResume}
                   disabled={busy}
-                  startIcon={<ArrowBackRoundedIcon />}
+                  startIcon={
+                    isInProgress ? <PauseCircleRoundedIcon /> : <PlayCircleFilledWhiteRoundedIcon />
+                  }
                   sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
                 >
-                  Back to Trip
+                  {isInProgress ? 'Pause' : elapsedMs > 0 ? 'Resume' : 'Start'}
                 </Button>
               </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  color="error"
-                  onClick={handleCancelTrip}
-                  disabled={busy}
-                  startIcon={<CancelRoundedIcon />}
-                  sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
-                >
-                  Cancel Trip
-                </Button>
-              </Grid>
-            </Grid>
-
-            <Grid container spacing={1.5}>
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid size={{ xs: 7 }}>
                 <Button
                   fullWidth
                   variant="contained"
@@ -187,18 +173,32 @@ export default function ShoppingProgressNav({
                   Checkout
                 </Button>
               </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
+            </Grid>
+
+            <Grid container spacing={1.5}>
+              <Grid size={{ xs: 6 }}>
                 <Button
                   fullWidth
                   variant="outlined"
-                  onClick={handlePauseResume}
+                  onClick={handleBackToTrip}
                   disabled={busy}
-                  startIcon={
-                    isInProgress ? <PauseCircleRoundedIcon /> : <PlayCircleFilledWhiteRoundedIcon />
-                  }
+                  startIcon={<ArrowBackRoundedIcon />}
                   sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
                 >
-                  {isInProgress ? 'Pause' : 'Resume'}
+                  Back to Trip
+                </Button>
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  color="error"
+                  onClick={handleCancelTrip}
+                  disabled={busy}
+                  startIcon={<CancelRoundedIcon />}
+                  sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
+                >
+                  Cancel Trip
                 </Button>
               </Grid>
             </Grid>
