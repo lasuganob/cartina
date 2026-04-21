@@ -68,7 +68,7 @@ export default function ShoppingProgressNav({
           <Stack spacing={0.5}>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
               <Typography variant="subtitle2" fontWeight={700}>
-                Shopping {isInProgress ? 'In Progress' : 'Paused'}
+                Shopping {isInProgress ? 'In Progress' : elapsedMs > 0 ? 'Paused' : 'Not Started'}
               </Typography>
               <IconButton
                 aria-label={actionsExpanded ? 'Collapse trip actions' : 'Expand trip actions'}
@@ -85,7 +85,7 @@ export default function ShoppingProgressNav({
                 {formatCurrency(metrics.subtotal)} / {formatCurrency(trip.budget)}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ fontSize: '12px' }}>
-                {Math.round(metrics.progress)}% checked
+                {Math.round(metrics.progress)}% of budget
               </Typography>
             </Stack>
           </Stack>

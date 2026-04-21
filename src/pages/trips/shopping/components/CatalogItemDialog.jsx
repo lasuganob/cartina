@@ -16,28 +16,20 @@ import { useState, useEffect } from 'react';
 import { db, queueMutation } from '../../../../lib/db';
 import { apiClient } from '../../../../api/client';
 import CategorySelector from '../../../../components/CategorySelector';
+import BarcodeScannerDialog from '../../../../components/BarcodeScannerDialog';
 
 export default function CatalogItemDialog({
   item,
   open,
   onClose,
   onComplete,
-  categories,
-  onScanClick,
-  scannerBarcode // Pass the result of a scan if it happened
+  categories
 }) {
-  const [step, setStep] = useState('ask_inventory'); // 'ask_inventory' | 'scan' | 'category'
+  const [step, setStep] = useState('ask_inventory'); // 'ask_inventory' | 'scan' | 'scanning' | 'category'
   const [categoryId, setCategoryId] = useState(item.category_id || '');
   const [barcode, setBarcode] = useState('');
   const [isWetMarket, setIsWetMarket] = useState(false);
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (scannerBarcode && step === 'scan') {
-      setBarcode(scannerBarcode);
-      setStep('category');
-    }
-  }, [scannerBarcode, step]);
 
   const handleSaveToInventory = async () => {
     setBusy(true);
@@ -165,41 +157,7 @@ export default function CatalogItemDialog({
             </Stack>
 
             <Stack spacing={2}>
-              <Button
-                fullWidth
-                variant="outlined"
-                size="large"
-                startIcon={<QrCodeScannerRoundedIcon />}
-                onClick={onScanClick}
-                sx={{ borderRadius: 1, py: 2 }}
-              >
-                Scan Barcode
-              </Button>
-
-              <TextField
-                fullWidth
-                label="Manual Barcode"
-                size="small"
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                placeholder="Enter numbers if scan fails"
-              />
-
-              <Button
-                fullWidth
-                variant="text"
-                color="primary"
-                startIcon={<StorefrontRoundedIcon />}
-                onClick={() => {
-                  setIsWetMarket(true);
-                  setStep('category');
-                }}
-                sx={{ fontSize: '12px' }}
-              >
-                No Barcode (Wet Market/Produce)
-              </Button>
-
-              {barcode.trim() && (
+              {barcode.trim() ? (
                 <Button
                   fullWidth
                   variant="contained"
@@ -209,6 +167,33 @@ export default function CatalogItemDialog({
                 >
                   Continue to Category
                 </Button>
+              ): (
+                <>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    startIcon={<QrCodeScannerRoundedIcon />}
+                    onClick={() => setStep('scanning')}
+                    sx={{ borderRadius: 1, py: 2 }}
+                  >
+                    Scan Barcode
+                  </Button>
+
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    color="primary"
+                    startIcon={<StorefrontRoundedIcon />}
+                    onClick={() => {
+                      setIsWetMarket(true);
+                      setStep('category');
+                    }}
+                    sx={{ fontSize: '12px', borderRadius: 0 }}
+                  >
+                    No Barcode (Wet Market/Produce)
+                  </Button>
+                </>
               )}
             </Stack>
 
@@ -216,6 +201,20 @@ export default function CatalogItemDialog({
               Back
             </Button>
           </Stack>
+        )}
+
+        {step === 'scanning' && (
+          <Box py={2}>
+            <BarcodeScannerDialog
+              open={true}
+              variant="inline"
+              onClose={() => setStep('scan')}
+              onScanSuccess={(code) => {
+                setBarcode(code);
+                setStep('category');
+              }}
+            />
+          </Box>
         )}
 
         {step === 'category' && (

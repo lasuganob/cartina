@@ -173,11 +173,11 @@ export default function ShoppingItemCard({ item, index, onChange, open, onOpen, 
           {/* Editable fields */}
           <Stack spacing={2}>
             {/* Qty incrementor/decrementor */}
-            <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
               <QuantitySelector
                 value={item.quantity}
                 onChange={(val) => onChange({ quantity: val })}
-                sx={{ mr: 2 }}
+                sx={{ mr: 2, mt: 0.7 }}
               />
               <TextField
                 label="Actual Price"
@@ -192,7 +192,7 @@ export default function ShoppingItemCard({ item, index, onChange, open, onOpen, 
                 }}
                 inputProps={{ min: 0, step: '0.01' }}
                 error={Boolean(actualPriceError)}
-                helperText={actualPriceError}
+                helperText={actualPriceError ? actualPriceError : "Planned price: " + item.planned_price}
                 InputProps={{
                   startAdornment: <InputAdornment position="start">₱</InputAdornment>,
                 }}

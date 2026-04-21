@@ -16,11 +16,13 @@ export default function ManagersPage() {
 
   useEffect(() => {
     const type = searchParams.get('type');
-    if (type === 'stores' && storesRef.current) {
-      storesRef.current.scrollIntoView({ behavior: 'smooth' });
-    } else if (type === 'categories' && categoriesRef.current) {
-      categoriesRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    setTimeout(() => {
+      if (type === 'stores' && storesRef.current) {
+        storesRef.current.scrollIntoView({ behavior: 'smooth' });
+      } else if (type === 'categories' && categoriesRef.current) {
+        categoriesRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
   }, [searchParams]);
 
   return (

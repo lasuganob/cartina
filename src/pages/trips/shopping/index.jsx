@@ -104,7 +104,6 @@ export default function TripShoppingPage() {
     startedAt: ''
   });
   const [catalogingItem, setCatalogingItem] = useState(null);
-  const [lastScannedBarcode, setLastScannedBarcode] = useState('');
   const { lookup } = useBarcodeLookup();
   const categories = useLiveQuery(() => db.categories.orderBy('name').toArray(), []) || [];
   const persistRef = useRef({
@@ -223,10 +222,10 @@ export default function TripShoppingPage() {
       0
     );
     const variance = subtotal - plannedTotal;
-    const progress = draftItems.length ? (checkedCount / draftItems.length) * 100 : 0;
+    const progress = trip?.budget && subtotal ? (subtotal / trip.budget) * 100 : 0;
 
     return { checkedCount, unplannedCount, subtotal, plannedTotal, variance, progress };
-  }, [draftItems]);
+  }, [draftItems, trip]);
 
   const elapsedMs = useMemo(
     () => getCurrentElapsedMs(sessionState, tick),
@@ -286,15 +285,15 @@ export default function TripShoppingPage() {
   const handleUpdateItem = useCallback((index, changes) => {
     const item = draftItems[index];
 
+    setDraftItems((current) =>
+      current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...changes } : item))
+    );
+
     // If marking an ad-hoc item as purchased, trigger cataloging flow
     if (changes.is_purchased === true && item && item.is_ad_hoc && !item.inventory_item_id) {
       setCatalogingItem({ ...item, index });
       return;
     }
-
-    setDraftItems((current) =>
-      current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...changes } : item))
-    );
   }, [draftItems]);
 
   function handleAddUnplannedItem(inventoryItem = null) {
@@ -332,12 +331,6 @@ export default function TripShoppingPage() {
       const item = draftItems[existingIndex];
       setActiveItemId(item.draft_key || item.id);
       setScannerStatus('found');
-      return;
-    }
-
-    // If we are in the middle of cataloging an item, provide the barcode to it
-    if (catalogingItem) {
-      setLastScannedBarcode(barcode);
       return;
     }
 
@@ -509,7 +502,6 @@ export default function TripShoppingPage() {
           setUnplannedDraft={setUnplannedDraft}
           handleAddUnplannedItem={handleAddUnplannedItem}
           setShowUnplannedForm={setShowUnplannedForm}
-          onScanClick={() => setScannerOpen(true)}
           scannerStatus={scannerStatus}
           categories={categories}
         />
@@ -640,12 +632,9 @@ export default function TripShoppingPage() {
           open={!!catalogingItem}
           onClose={() => setCatalogingItem(null)}
           categories={categories}
-          onScanClick={() => setScannerOpen(true)}
-          scannerBarcode={lastScannedBarcode}
           onComplete={(updates) => {
             handleUpdateItem(catalogingItem.index, updates);
             setCatalogingItem(null);
-            setLastScannedBarcode('');
           }}
         />
       )}

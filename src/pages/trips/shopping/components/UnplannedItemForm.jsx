@@ -19,9 +19,7 @@ import { db, queueMutation } from '../../../../lib/db';
 import { apiClient } from '../../../../api/client';
 import CategorySelector from '../../../../components/CategorySelector';
 import QuantitySelector from '../../../../components/QuantitySelector';
-
-
-
+import BarcodeScannerDialog from '../../../../components/BarcodeScannerDialog';
 import { useState } from 'react';
 
 export default function UnplannedItemForm({
@@ -29,11 +27,10 @@ export default function UnplannedItemForm({
   setUnplannedDraft,
   handleAddUnplannedItem,
   setShowUnplannedForm,
-  onScanClick,
   scannerStatus,
   categories,
 }) {
-  const [step, setStep] = useState('form'); // 'form' | 'ask_inventory' | 'category'
+  const [step, setStep] = useState('form'); // 'form' | 'ask_inventory' | 'category' | 'scanning'
   const [categoryId, setCategoryId] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -170,7 +167,7 @@ export default function UnplannedItemForm({
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">
-                      <IconButton onClick={onScanClick} edge="end" color="primary">
+                      <IconButton onClick={() => setStep('scanning')} edge="end" color="primary">
                         <QrCodeScannerRoundedIcon />
                       </IconButton>
                     </InputAdornment>
@@ -257,6 +254,20 @@ export default function UnplannedItemForm({
               </Button>
             </Stack>
           </>
+        )}
+
+        {step === 'scanning' && (
+          <Box py={2}>
+            <BarcodeScannerDialog
+              open={true}
+              variant="inline"
+              onClose={() => setStep('form')}
+              onScanSuccess={(code) => {
+                updateDraft({ barcode: code });
+                setStep('form');
+              }}
+            />
+          </Box>
         )}
 
         {step === 'ask_inventory' && (

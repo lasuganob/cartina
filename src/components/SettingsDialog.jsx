@@ -4,12 +4,14 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   Typography,
   Box,
   CircularProgress,
   Chip,
   Stack,
   useMediaQuery,
+  colors,
 } from '@mui/material';
 import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded';
 import StoreRoundedIcon from '@mui/icons-material/StoreRounded';
@@ -19,6 +21,7 @@ import SyncRoundedIcon from '@mui/icons-material/SyncRounded';
 import CloudDoneRoundedIcon from '@mui/icons-material/CloudDoneRounded';
 import CloudOffRoundedIcon from '@mui/icons-material/CloudOffRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
+import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import { db } from '../lib/db';
 import { useTheme } from '@emotion/react';
 import { useNavigate } from 'react-router-dom';
@@ -98,7 +101,7 @@ export default function SettingsDialog({ open, onClose }) {
               sx={{
                 fontWeight: 700,
                 mb: 2,
-                textTransform: 'uppercase',
+                  textTransform: 'uppercase',
                 fontSize: '0.75rem',
                 letterSpacing: '0.05em',
                 display: 'flex',
@@ -137,13 +140,6 @@ export default function SettingsDialog({ open, onClose }) {
               )}
             </Stack>
 
-            {/* Last synced timestamp */}
-            {lastSynced && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-                Last synced: {formatRelativeTime(lastSynced)}
-              </Typography>
-            )}
-
             {/* Sync error */}
             {syncError && (
               <Stack direction="row" spacing={0.5} alignItems="flex-start" sx={{ mb: 1.5 }}>
@@ -176,6 +172,13 @@ export default function SettingsDialog({ open, onClose }) {
               {isSyncing ? 'Syncing…' : 'Sync Now'}
             </Button>
 
+            {/* Last synced timestamp */}
+            {lastSynced && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5, textAlign: 'right' }}>
+                Last synced: {formatRelativeTime(lastSynced)}
+              </Typography>
+            )}  
+
             {!isOnline && (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, textAlign: 'center' }}>
                 You're offline. Connect to sync.
@@ -183,7 +186,52 @@ export default function SettingsDialog({ open, onClose }) {
             )}
           </Box>
 
+          <Divider />
+
           {/* Management Section */}
+          <Box>
+            <Typography
+              variant="subtitle2"
+              color="primary"
+              sx={{
+                fontWeight: 700,
+                mb: 2,
+                  textTransform: 'uppercase',
+                fontSize: '0.75rem',
+                letterSpacing: '0.05em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}
+            >
+              <ManageAccountsRoundedIcon sx={{ fontSize: 18 }} />
+              Management
+            </Typography>
+            <Stack spacing={1.5} direction="row" justifyContent="space-between">
+              <Button
+                variant="outlined"
+                fullWidth
+                startIcon={<StoreRoundedIcon />}
+                onClick={() => handleNavigateToManager('stores')}
+                sx={{ fontSize: "12px", py: 1, borderRadius: 2 }}
+              >
+                Stores
+              </Button>
+              <Button
+                variant="outlined"
+                fullWidth
+                startIcon={<CategoryRoundedIcon />}
+                onClick={() => handleNavigateToManager('categories')}
+                sx={{ fontSize: "12px",py: 1, borderRadius: 2 }}
+              >
+                Categories
+              </Button>
+            </Stack>
+          </Box>
+
+          <Divider />
+
+          {/* Local Storage Section */}
           <Box>
             <Typography
               variant="subtitle2"
@@ -199,65 +247,24 @@ export default function SettingsDialog({ open, onClose }) {
                 gap: 1
               }}
             >
-              <ManageAccountsRoundedIcon sx={{ fontSize: 18 }} />
-              Management
-            </Typography>
-            <Stack spacing={1.5}>
-              <Button
-                variant="outlined"
-                fullWidth
-                startIcon={<StoreRoundedIcon />}
-                onClick={() => handleNavigateToManager('stores')}
-                sx={{ justifyContent: 'flex-start', py: 1.5, borderRadius: 2 }}
-              >
-                Manage Stores
-              </Button>
-              <Button
-                variant="outlined"
-                fullWidth
-                startIcon={<CategoryRoundedIcon />}
-                onClick={() => handleNavigateToManager('categories')}
-                sx={{ justifyContent: 'flex-start', py: 1.5, borderRadius: 2 }}
-              >
-                Manage Categories
-              </Button>
-            </Stack>
-          </Box>
-
-          {/* Local Storage Section */}
-          <Box>
-            <Typography
-              variant="subtitle2"
-              color="primary"
-              sx={{
-                fontWeight: 700,
-                mb: 1,
-                textTransform: 'uppercase',
-                fontSize: '0.75rem',
-                letterSpacing: '0.05em'
-              }}
-            >
+              <StorageRoundedIcon sx={{ fontSize: 18 }} />
               Local Storage
             </Typography>
             <Box>
-              <Box>
-                <Typography variant="body1" sx={{ fontWeight: 500 }}>Clear Cache & Data</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Reset the local database. Use this if you encounter sync issues.
-                </Typography>
-              </Box>
-              <Button
-                variant="contained"
-                color="error"
-                disableElevation
-                size="small"
-                startIcon={<DeleteForeverRoundedIcon />}
-                onClick={handleClearData}
-                sx={{ borderRadius: 2, whiteSpace: 'nowrap', mt: 1, px: 3 }}
-              >
-                Clear Data
-              </Button>
+              <Typography variant="body1" sx={{ fontWeight: 500 }}>Clear Cache & Data</Typography>
+              <Typography variant="caption" color="text.secondary"><b>NOTE:</b> This will clear all queued changes.</Typography>
             </Box>
+            <Button
+              variant="contained"
+              color="error"
+              disableElevation
+              size="small"
+              startIcon={<DeleteForeverRoundedIcon />}
+              onClick={handleClearData}
+              sx={{ borderRadius: 2, whiteSpace: 'nowrap', mt: 1, px: 3 }}
+            >
+              Clear Data
+            </Button>
           </Box>
 
         </Stack>
