@@ -65,6 +65,10 @@ export default function TripDetailsPage() {
     }
   }
 
+  function handleDuplicateTrip() {
+    navigate(`/trips/new?duplicate=${tripId}`)
+  }
+
   if (loading) {
     return (
       <>
@@ -148,6 +152,7 @@ export default function TripDetailsPage() {
         onStartTrip={() => navigate(`/trips/${trip.id}/shopping`)}
         onBuildChecklist={handleBuildChecklist}
         onArchiveTrip={() => setArchiveDialogOpen(true)}
+        onDuplicateTrip={handleDuplicateTrip}
       />
       <BuildChecklistDialog
         open={checklistDialogOpen}

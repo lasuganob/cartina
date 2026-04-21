@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Button,
@@ -53,13 +53,48 @@ function validate(values) {
 
 export default function NewTripPage() {
   const navigate = useNavigate();
-  const { addTrip, replaceTripChecklist } = useTrips();
+  const { addTrip, trips, replaceTripChecklist } = useTrips();
   const [values, setValues] = useState(buildInitialValues);
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [checklistDialogOpen, setChecklistDialogOpen] = useState(false);
   const [draftItems, setDraftItems] = useState([]);
   const hasErrors = Object.values(errors).some(Boolean);
+
+  const duplicateTripId = useMemo(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('duplicate');
+  }, []);
+
+  const duplicateTrip = useMemo(() => {
+    if (!duplicateTripId) {
+      return null;
+    }
+    return trips.find((item) => String(item.id) === String(duplicateTripId));
+  }, [duplicateTripId, trips]);
+
+  useEffect(() => {
+    if (duplicateTrip) {
+      setValues((current) => ({
+        ...current,
+        name: `Copy of ${duplicateTrip.name}`,
+        planned_for: dayjs(duplicateTrip.planned_for),
+        budget: duplicateTrip.budget,
+        store_id: duplicateTrip.store_id,
+        note: duplicateTrip.note
+      }));
+      const duplicateTripItems = duplicateTrip.items.map((item, index) => ({
+        ...item,
+        id: '',
+        trip_id: '',
+        actual_price: null,
+        is_purchased: false,
+        is_unplanned: false,
+        sort_order: index,
+      }));
+      setDraftItems(duplicateTripItems);
+    }
+  }, [duplicateTrip]);
 
   const draftTrip = useMemo(
     () => ({
@@ -108,8 +143,8 @@ export default function NewTripPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Grocery Trips"
-        title="New Trip"
+        eyebrow="Grocery Trip"
+        title={`${duplicateTrip ? 'Duplicate' : 'New'} Trip`}
         description="Create the trip details and build its checklist before saving."
         action={
           <Button component={NavLink} to="/trips" variant="contained">
