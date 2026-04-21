@@ -9,7 +9,7 @@ import {
   Stack,
   Typography
 } from '@mui/material';
-import RemoveShoppingCartRoundedIcon from '@mui/icons-material/RemoveShoppingCartRounded';
+import ShoppingCartRoundedIcon from '@mui/icons-material/ShoppingCartRounded';
 import PauseCircleRoundedIcon from '@mui/icons-material/PauseCircleRounded';
 import PlayCircleFilledWhiteRoundedIcon from '@mui/icons-material/PlayCircleFilledWhiteRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
@@ -67,9 +67,15 @@ export default function ShoppingProgressNav({
         <Stack spacing={1}>
           <Stack spacing={0.5}>
             <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Typography variant="subtitle2" fontWeight={700}>
-                Shopping {isInProgress ? 'In Progress' : elapsedMs > 0 ? 'Paused' : 'Not Started'}
-              </Typography>
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Typography variant="subtitle2" fontWeight={700}>
+                  Shopping {isInProgress ? 'In Progress' : elapsedMs > 0 ? 'Paused' : 'Not Started'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{fontSize: "12px"}}>
+                  ({formatTimer(elapsedMs)})
+                </Typography>
+              </Stack>
+              
               <IconButton
                 aria-label={actionsExpanded ? 'Collapse trip actions' : 'Expand trip actions'}
                 edge="end"
@@ -93,46 +99,25 @@ export default function ShoppingProgressNav({
 
         <Collapse in={actionsExpanded} timeout="auto" unmountOnExit>
           <Stack spacing={2}>
-            <Stack direction="row" spacing={1} flexWrap="wrap" alignItems="center">
-              <Chip
-                icon={<RemoveShoppingCartRoundedIcon />}
-                label={`Timer ${formatTimer(elapsedMs)}`}
-                variant="outlined"
-              />
-              <Chip
-                label={busy ? 'Saving…' : 'Saved locally'}
-                color={busy ? 'warning' : 'success'}
-                variant="outlined"
-              />
-            </Stack>
-
             <Grid container spacing={1.5}>
-              <Grid size={{ xs: 6, md: 3 }}>
-                <Typography variant="body2" color="text.secondary">
+              <Grid size={{ xs: 4 }}>
+                <Typography variant="body2" color="text.secondary" sx={{fontSize: "12px"}}>
                   Checked
                 </Typography>
                 <Typography variant="subtitle1" fontWeight={700}>
                   {metrics.checkedCount}/{draftItemsLength}
                 </Typography>
               </Grid>
-              <Grid size={{ xs: 6, md: 3 }}>
-                <Typography variant="body2" color="text.secondary">
+              <Grid size={{ xs: 4 }}>
+                <Typography variant="body2" color="text.secondary" sx={{fontSize: "12px"}}>
                   Unplanned items
                 </Typography>
                 <Typography variant="subtitle1" fontWeight={700}>
                   {metrics.unplannedCount}
                 </Typography>
               </Grid>
-              <Grid size={{ xs: 6, md: 3 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Subtotal
-                </Typography>
-                <Typography variant="subtitle1" fontWeight={700}>
-                  {formatCurrency(metrics.subtotal)}
-                </Typography>
-              </Grid>
-              <Grid size={{ xs: 6, md: 3 }}>
-                <Typography variant="body2" color="text.secondary">
+              <Grid size={{ xs: 4 }}>
+                <Typography variant="body2" color="text.secondary" sx={{fontSize: "12px"}}>
                   Variance vs Planned
                 </Typography>
                 <Typography

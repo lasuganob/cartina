@@ -385,7 +385,7 @@ export function useTrips() {
 
   const stats = useMemo(() => {
     const allTrips = tripsData || [];
-    const activeItems = allTrips.filter((trip) => trip.status !== 'archived');
+    const activeItems = allTrips.filter((trip) => !['archived', 'cancelled'].includes(trip.status));
     const plannedTrips = activeItems.filter((trip) => trip.status === 'planned').length;
     const completedTrips = activeItems.filter((trip) => trip.status === 'completed').length;
     const inProgressTrips = activeItems.filter((trip) => trip.status === 'in_progress').length;
