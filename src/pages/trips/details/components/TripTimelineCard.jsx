@@ -18,12 +18,14 @@ function formatVal(val, isDate) {
 }
 
 export default function TripTimelineCard({ trip }) {
-  const milestones = MILESTONES.map((m) => ({
+  const visibleMilestones = trip.status === 'archived'
+    ? MILESTONES
+    : MILESTONES.filter((milestone) => milestone.key !== 'archived_at');
+
+  const milestones = visibleMilestones.map((m) => ({
     ...m,
     value: formatVal(trip[m.key], m.isDate),
   }));
-
-  const activeMilestones = milestones.filter((m) => m.key === 'created_at' || m.value);
 
   return (
     <Card sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider' }} elevation={0}>
@@ -34,7 +36,7 @@ export default function TripTimelineCard({ trip }) {
 
         <Stack spacing={0}>
           {milestones.map((milestone, index) => {
-            const done = !!milestone.value || milestone.key === 'created_at';
+            const done = !!milestone.value || milestone.key === 'created_at';;
             const isLast = index === milestones.length - 1;
 
             return (

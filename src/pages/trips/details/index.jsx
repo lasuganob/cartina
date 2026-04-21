@@ -105,18 +105,6 @@ export default function TripDetailsPage() {
         eyebrow={<StatusChip status={trip.status} />}
         title={trip.name}
         description={trip.note}
-        action={
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Button
-              component={NavLink}
-              to="/trips"
-              variant="contained"
-              sx={{ borderRadius: 1, fontSize: '12px', py: 1.25 }}
-            >
-              Back to Trips
-            </Button>
-          </Stack>
-        }
       />
 
       {error ? (

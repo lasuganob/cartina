@@ -90,7 +90,8 @@ export default function MobileLayout() {
           mt: `${tokens.layout.topBarHeight}px`,
           pb: 18,
           flexGrow: 1,
-          px: 2
+          px: 2,
+          mb: 5
         }}
       >
         <Outlet />

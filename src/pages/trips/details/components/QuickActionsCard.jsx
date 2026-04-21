@@ -42,7 +42,7 @@ export default function QuickActionsCard({
             onClick={() => setExpanded((current) => !current)}
             sx={{ backgroundColor: 'background.paper', borderRadius: 0,  borderTopLeftRadius: 16 , mb: "-15px" }}
           >
-            {expanded ? <ExpandLessRoundedIcon /> : <ExpandMoreRoundedIcon />}
+            {expanded ? <ExpandMoreRoundedIcon /> : <ExpandLessRoundedIcon />}
           </IconButton>
         </Box>
 
@@ -80,6 +80,18 @@ export default function QuickActionsCard({
                 <Button
                   fullWidth
                   variant="outlined"
+                  onClick={onDuplicateTrip}
+                  disabled={busy || trip.status === 'archived'}
+                  startIcon={<ContentCopyRoundedIcon />}
+                  sx={styles.quickActionButton}
+                >
+                  Duplicate
+                </Button>
+              </Grid>
+              <Grid size={{ xs: 4 }}>
+                <Button
+                  fullWidth
+                  variant="outlined"
                   onClick={onBuildChecklist}
                   disabled={busy || trip.status === 'completed' || trip.status === 'cancelled' || trip.status === 'archived'}
                   startIcon={<BorderColorRoundedIcon />}
@@ -98,18 +110,6 @@ export default function QuickActionsCard({
                   sx={styles.quickActionButton}
                 >
                   Archive Trip
-                </Button>
-              </Grid>
-              <Grid size={{ xs: 4 }}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  onClick={onDuplicateTrip}
-                  disabled={busy || trip.status === 'archived'}
-                  startIcon={<ContentCopyRoundedIcon />}
-                  sx={styles.quickActionButton}
-                >
-                  Duplicate
                 </Button>
               </Grid>
             </Grid>
