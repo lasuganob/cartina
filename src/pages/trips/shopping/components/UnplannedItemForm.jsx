@@ -15,12 +15,14 @@ import InventoryRoundedIcon from '@mui/icons-material/InventoryRounded';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import Alert from '@mui/material/Alert';
 import { formatCurrency } from '../../../../utils/formatCurrency';
-import { db, queueMutation } from '../../../../lib/db';
+import { db } from '../../../../lib/db';
 import { apiClient } from '../../../../api/client';
 import CategorySelector from '../../../../components/CategorySelector';
 import QuantitySelector from '../../../../components/QuantitySelector';
 import BarcodeScannerDialog from '../../../../components/BarcodeScannerDialog';
 import { useState } from 'react';
+import { useAppContext } from '../../../../context/AppContext';
+import { syncMutationNowOrEnqueue } from '../../../../hooks/useOfflineSync';
 
 export default function UnplannedItemForm({
   unplannedDraft,
@@ -33,6 +35,7 @@ export default function UnplannedItemForm({
   const [step, setStep] = useState('form'); // 'form' | 'ask_inventory' | 'category' | 'scanning'
   const [categoryId, setCategoryId] = useState('');
   const [busy, setBusy] = useState(false);
+  const { showConflict } = useAppContext();
 
   const lineSubtotal = Number(unplannedDraft.actual_price || 0) * Number(unplannedDraft.quantity || 1);
 
@@ -92,7 +95,19 @@ export default function UnplannedItemForm({
       };
 
       await db.inventoryItems.put(newItem);
-      await queueMutation('inventoryItems', 'create', newItem);
+      await syncMutationNowOrEnqueue(
+        {
+          entity: 'inventoryItems',
+          action: 'create',
+          payload: newItem
+        },
+        {
+          onConflict: async (entityName, localData, remoteData) =>
+            new Promise((resolve) => {
+              showConflict(entityName, localData, remoteData, resolve);
+            })
+        }
+      );
 
       
       handleAddUnplannedItem({ ...newItem, category: selectedCategory });

@@ -12,11 +12,13 @@ import InventoryRoundedIcon from '@mui/icons-material/InventoryRounded';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import QrCodeScannerRoundedIcon from '@mui/icons-material/QrCodeScannerRounded';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
-import { useState, useEffect } from 'react';
-import { db, queueMutation } from '../../../../lib/db';
+import { useState } from 'react';
+import { db } from '../../../../lib/db';
 import { apiClient } from '../../../../api/client';
 import CategorySelector from '../../../../components/CategorySelector';
 import BarcodeScannerDialog from '../../../../components/BarcodeScannerDialog';
+import { useAppContext } from '../../../../context/AppContext';
+import { syncMutationNowOrEnqueue } from '../../../../hooks/useOfflineSync';
 
 export default function CatalogItemDialog({
   item,
@@ -30,6 +32,7 @@ export default function CatalogItemDialog({
   const [barcode, setBarcode] = useState('');
   const [isWetMarket, setIsWetMarket] = useState(false);
   const [busy, setBusy] = useState(false);
+  const { showConflict } = useAppContext();
 
   const handleSaveToInventory = async () => {
     setBusy(true);
@@ -55,7 +58,19 @@ export default function CatalogItemDialog({
       };
 
       await db.inventoryItems.put(newItem);
-      await queueMutation('inventoryItems', 'create', newItem);
+      await syncMutationNowOrEnqueue(
+        {
+          entity: 'inventoryItems',
+          action: 'create',
+          payload: newItem
+        },
+        {
+          onConflict: async (entityName, localData, remoteData) =>
+            new Promise((resolve) => {
+              showConflict(entityName, localData, remoteData, resolve);
+            })
+        }
+      );
 
       onComplete({
         inventory_item_id: newItem.id,

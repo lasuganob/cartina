@@ -6,10 +6,6 @@ import PageHeader from '../../components/PageHeader';
 import { useTrips } from '../../hooks/useTrips';
 import { formatCurrency } from '../../utils/formatCurrency';
 import StatusChip from '../../components/StatusChip';
-import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
-import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded';
-import SavingsRoundedIcon from '@mui/icons-material/SavingsRounded';
-import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 
 dayjs.extend(relativeTime);
 
@@ -55,7 +51,7 @@ export default function DashboardPage() {
     <>
       <PageHeader
         eyebrow={dayjs().format('dddd, MMMM D, YYYY')}
-        title={getGreeting() + ", User"}
+        title={getGreeting()}
         description="Track upcoming grocery trips, budgets, and spending at a glance."
       />
 

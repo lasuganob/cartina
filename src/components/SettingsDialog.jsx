@@ -11,7 +11,6 @@ import {
   Chip,
   Stack,
   useMediaQuery,
-  colors,
 } from '@mui/material';
 import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded';
 import StoreRoundedIcon from '@mui/icons-material/StoreRounded';
@@ -113,77 +112,65 @@ export default function SettingsDialog({ open, onClose }) {
               Google Sheets Sync
             </Typography>
 
-            {/* Status Row */}
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ mb: 2 }}>
-              <Chip
-                size="small"
-                icon={isOnline ? <CloudDoneRoundedIcon /> : <CloudOffRoundedIcon />}
-                label={isOnline ? 'Online' : 'Offline'}
-                color={isOnline ? 'success' : 'default'}
-                variant="outlined"
-              />
-              {pendingCount > 0 && (
-                <Chip
-                  size="small"
-                  label={`${pendingCount} pending`}
-                  color="warning"
-                  variant="outlined"
-                />
-              )}
-              {pendingCount === 0 && lastSynced && (
-                <Chip
-                  size="small"
-                  label="Up to date"
-                  color="success"
-                  variant="outlined"
-                />
-              )}
-            </Stack>
-
-            {/* Sync error */}
-            {syncError && (
-              <Stack direction="row" spacing={0.5} alignItems="flex-start" sx={{ mb: 1.5 }}>
-                <ErrorOutlineRoundedIcon sx={{ fontSize: 14, color: 'error.main', mt: 0.3, flexShrink: 0 }} />
-                <Typography variant="caption" color="error.main">
-                  {syncError}
-                </Typography>
-              </Stack>
-            )}
-
-            <Button
-              id="settings-sync-button"
-              variant="contained"
-              fullWidth
-              disableElevation
-              disabled={!isOnline || isSyncing}
-              startIcon={
-                isSyncing
-                  ? <CircularProgress size={16} color="inherit" />
-                  : <SyncRoundedIcon />
-              }
-              onClick={handleSync}
+            <Box
               sx={{
+                border: '1px solid',
+                borderColor: 'divider',
                 borderRadius: 2,
-                py: 1.2,
-                fontWeight: 600,
-                transition: 'all 0.2s',
+                px: 1.5,
+                py: 1.25,
+                bgcolor: 'background.default'
               }}
             >
-              {isSyncing ? 'Syncing…' : 'Sync Now'}
-            </Button>
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                <Stack spacing={0.25} sx={{ minWidth: 0 }}>
+                  <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
+                    <Chip
+                      size="small"
+                      icon={isOnline ? <CloudDoneRoundedIcon /> : <CloudOffRoundedIcon />}
+                      label={isOnline ? 'Online' : 'Offline'}
+                      color={isOnline ? 'success' : 'default'}
+                      variant="outlined"
+                    />
+                    {pendingCount > 0 ? (
+                      <Chip size="small" label={`${pendingCount} queued`} color="warning" variant="outlined" />
+                    ) : (
+                      <Chip size="small" label="Auto sync on" color="default" variant="outlined" />
+                    )}
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary">
+                    {lastSynced ? `Last synced ${formatRelativeTime(lastSynced)}` : 'Sync runs automatically when possible.'}
+                  </Typography>
+                </Stack>
 
-            {/* Last synced timestamp */}
-            {lastSynced && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5, textAlign: 'right' }}>
-                Last synced: {formatRelativeTime(lastSynced)}
-              </Typography>
-            )}  
+                <Button
+                  id="settings-sync-button"
+                  variant="text"
+                  size="small"
+                  disabled={!isOnline || isSyncing}
+                  startIcon={isSyncing ? <CircularProgress size={14} color="inherit" /> : <SyncRoundedIcon />}
+                  onClick={handleSync}
+                  sx={{ flexShrink: 0, minWidth: 'auto', px: 1, py: 0.5 }}
+                >
+                  {isSyncing ? 'Syncing' : 'Run now'}
+                </Button>
+              </Stack>
 
-            {!isOnline && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, textAlign: 'center' }}>
-                You're offline. Connect to sync.
-              </Typography>
-            )}
+              {syncError && (
+                <Stack direction="row" spacing={0.5} alignItems="flex-start" sx={{ mt: 1 }}>
+                  <ErrorOutlineRoundedIcon sx={{ fontSize: 14, color: 'error.main', mt: 0.15, flexShrink: 0 }} />
+                  <Typography variant="caption" color="error.main">
+                    {syncError}
+                  </Typography>
+                </Stack>
+              )}
+
+              {!isOnline && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                  Offline changes stay queued until connection returns.
+                </Typography>
+              )}
+            </Box>
           </Box>
 
           <Divider />

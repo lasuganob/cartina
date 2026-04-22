@@ -14,6 +14,7 @@ import {
 import dayjs from 'dayjs';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import SelectStore from '../../../../components/SelectStore';
+import { formatCurrency } from '../../../../utils/formatCurrency';
 
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
@@ -103,19 +104,19 @@ export default function TripDetailsCard({ trip, saving, onSave }) {
           >
             <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0, pr: { sm: 1.5 } }}>
               <CalendarMonthRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography variant="body2" fontWeight={600}>
+              <Typography variant="body2">
                 {trip.planned_for ? dayjs(trip.planned_for).format('MMM DD, YYYY') : 'Not set'}
               </Typography>
             </Stack>
             <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0, px: { sm: 1.5 } }}>
               <AccountBalanceWalletRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography variant="body2" fontWeight={600}>
-                PHP {trip.budget ?? 0}
+              <Typography variant="body2">
+                {trip.budget ? formatCurrency(trip.budget) : 0}
               </Typography>
             </Stack>
             <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0, pl: { sm: 1.5 } }}>
               <StorefrontRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-              <Typography variant="body2" fontWeight={600} noWrap>
+              <Typography variant="body2" noWrap>
                 {trip.store?.name || 'Not set'}
               </Typography>
             </Stack>

@@ -19,23 +19,22 @@ import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, queueMutation } from '../../../lib/db';
+import { db } from '../../../lib/db';
 import { useAppContext } from '../../../context/AppContext';
 import { apiClient } from '../../../api/client';
-
-
-
+import { syncMutationNowOrEnqueue } from '../../../hooks/useOfflineSync';
 
 const PAGE_SIZE = 5;
 
 export default function CategoriesManager() {
   const categories = useLiveQuery(() => db.categories.toArray()) || [];
-  const { showSnackbar } = useAppContext();
+  const { showSnackbar, showConflict } = useAppContext();
   
   const [editingCategory, setEditingCategory] = useState(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [name, setName] = useState('');
   const [page, setPage] = useState(1);
+  const [saving, setSaving] = useState(false);
 
   const paginatedCategories = useMemo(() => {
     const startIndex = (page - 1) * PAGE_SIZE;
@@ -58,7 +57,9 @@ export default function CategoriesManager() {
 
   const handleSave = async () => {
     if (!name.trim()) return;
+    if (saving) return;
 
+    setSaving(true);
     try {
       let categoryId = editingCategory?.id;
 
@@ -74,16 +75,35 @@ export default function CategoriesManager() {
 
       const categoryData = {
         id: categoryId,
-        name: name.trim()
+        name: name.trim(),
+        updated_at: editingCategory?.updated_at || ''
       };
 
       await db.categories.put(categoryData);
-      await queueMutation('categories', editingCategory ? 'update' : 'create', categoryData);
 
-      
-      showSnackbar(`Category ${editingCategory ? 'updated' : 'added'} successfully`, 'success');
+      setSaving(false);
       setPanelOpen(false);
+
+      const result = await syncMutationNowOrEnqueue(
+        {
+          entity: 'categories',
+          action: editingCategory ? 'update' : 'create',
+          payload: categoryData
+        },
+        {
+          onConflict: async (entityName, localData, remoteData) =>
+            new Promise((resolve) => {
+              showConflict(entityName, localData, remoteData, resolve);
+            })
+        }
+      );
+
+      showSnackbar(
+        `Category ${editingCategory ? 'updated' : 'added'} ${result.status === 'synced' ? 'and synced.' : 'locally and queued for sync.'}`,
+        'success'
+      );
     } catch (error) {
+      setSaving(false);
       showSnackbar('Error saving category: ' + error.message, 'error');
     }
   };
@@ -91,10 +111,28 @@ export default function CategoriesManager() {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this category?')) {
       try {
+        const existingCategory = categories.find((category) => String(category.id) === String(id));
         await db.categories.delete(id);
-        await queueMutation('categories', 'delete', { id });
+        const result = await syncMutationNowOrEnqueue(
+          {
+            entity: 'categories',
+            action: 'delete',
+            payload: { id, updated_at: existingCategory?.updated_at || '' }
+          },
+          {
+            onConflict: async (entityName, localData, remoteData) =>
+              new Promise((resolve) => {
+                showConflict(entityName, localData, remoteData, resolve);
+              })
+          }
+        );
 
-        showSnackbar('Category deleted', 'success');
+        showSnackbar(
+          result.status === 'synced'
+            ? 'Category deleted and synced.'
+            : 'Category deleted locally and queued for sync.',
+          'success'
+        );
       } catch (error) {
         showSnackbar('Error deleting category', 'error');
       }
@@ -204,7 +242,7 @@ export default function CategoriesManager() {
             disabled={!name.trim()}
             sx={{ py: 1.5, borderRadius: 2 }}
           >
-            {editingCategory ? 'Update Category' : 'Add Category'}
+            {editingCategory ? 'Update Category' : saving ? 'Adding...' : 'Add Category'}
           </Button>
           <Button 
             variant="text" 

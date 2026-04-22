@@ -21,6 +21,7 @@ import BudgetRunningTotal from './BuildChecklistDialogComponents/BudgetRunningTo
 import AddItem from './BuildChecklistDialogComponents/AddItem';
 import ChecklistItems from './BuildChecklistDialogComponents/ChecklistItems';
 import { useState, useMemo, useEffect } from 'react';
+import { useAppContext } from '../../../../context/AppContext';
 
 function buildDraftItem(item, index) {
   return {
@@ -63,6 +64,7 @@ function getDuplicateIndex(items, candidate) {
 export default function BuildChecklistDialog({ open, trip, busy, onClose, onSave }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const { showSnackbar } = useAppContext();
 
   const categories = useLiveQuery(() => db.categories.orderBy('name').toArray(), []) || [];
   const inventoryItems = useLiveQuery(() => db.inventoryItems.toArray(), []) || [];
@@ -167,6 +169,7 @@ export default function BuildChecklistDialog({ open, trip, busy, onClose, onSave
     return {
       item_name: itemName,
       inventory_item_id: selectedOption?.id || '',
+      category_id: selectedOption?.category_id || '',
       barcode: selectedOption?.barcode || '',
       quantity: Math.max(1, Number(addDraft.quantity || 1)),
       planned_price:
@@ -188,14 +191,28 @@ export default function BuildChecklistDialog({ open, trip, busy, onClose, onSave
   }
 
   function commitNewItem(candidate) {
+    const newDraftKey = `draft-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
     setDraftItems((current) => [
       ...current,
       {
         ...candidate,
-        draft_key: `draft-${Date.now()}-${current.length}`,
+        draft_key: newDraftKey,
         sort_order: current.length
       }
     ]);
+    
+    showSnackbar(`Added ${candidate.item_name} to checklist`, 'success');
+
+    if (candidate.is_ad_hoc) {
+      setTimeout(() => {
+        const el = document.getElementById(`item-${newDraftKey}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
+
     resetAddDraft();
   }
 
@@ -216,6 +233,15 @@ export default function BuildChecklistDialog({ open, trip, busy, onClose, onSave
   }
 
   async function handleSave() {
+    const missingCategory = draftItems.some(
+      (item) => !item.category_id && !item.inventory_item?.category_id
+    );
+
+    if (missingCategory) {
+      showSnackbar('Please select a category for all custom items.', 'error');
+      return;
+    }
+
     await onSave(
       draftItems.map((item, index) => ({
         ...item,
@@ -247,6 +273,8 @@ export default function BuildChecklistDialog({ open, trip, busy, onClose, onSave
           : item
       )
     );
+
+    showSnackbar(`Increased quantity for ${candidate.item_name}`, 'success');
 
     setPendingDuplicate(null);
     resetAddDraft();

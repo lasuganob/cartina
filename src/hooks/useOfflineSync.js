@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { apiClient } from '../api/client';
-import { db } from '../lib/db';
+import { db, queueMutation } from '../lib/db';
 import { useAppContext } from '../context/AppContext';
 
 let inFlightQueueSync = null;
@@ -70,6 +70,51 @@ async function reconcileCreatedInventoryItem(localItem, syncedItem) {
       await db.syncQueue.update(update.id, { payload: update.payload });
     }
   });
+}
+
+async function reconcileUpdatedRecord(entity, syncedItem) {
+  if (!syncedItem) {
+    return;
+  }
+
+  if (entity === 'trips') {
+    await db.trips.put(syncedItem);
+    return;
+  }
+
+  if (entity === 'inventoryItems') {
+    await db.inventoryItems.put(syncedItem);
+    return;
+  }
+
+  if (entity === 'stores') {
+    await db.stores.put(syncedItem);
+    return;
+  }
+
+  if (entity === 'categories') {
+    await db.categories.put(syncedItem);
+  }
+}
+
+async function reconcileDeletedRecord(entity, payload) {
+  if (!payload?.id) {
+    return;
+  }
+
+  if (entity === 'inventoryItems') {
+    await db.inventoryItems.delete(payload.id);
+    return;
+  }
+
+  if (entity === 'stores') {
+    await db.stores.delete(payload.id);
+    return;
+  }
+
+  if (entity === 'categories') {
+    await db.categories.delete(payload.id);
+  }
 }
 
 async function reconcileCreatedTrip(localTrip, syncedTrip) {
@@ -190,6 +235,305 @@ async function reconcileReplacedChecklist(tripId, localItems, syncedItems) {
   });
 }
 
+async function reconcileCreatedStore(localItem, syncedItem) {
+  if (!localItem || !syncedItem) {
+    return;
+  }
+
+  if (String(localItem.id) === String(syncedItem.id)) {
+    await db.stores.put(syncedItem);
+    return;
+  }
+
+  await db.transaction('rw', db.stores, db.trips, db.syncQueue, async () => {
+    await db.stores.delete(localItem.id);
+    await db.stores.put({ ...syncedItem });
+    await db.trips.where('store_id').equals(localItem.id).modify({ store_id: syncedItem.id });
+
+    const queueItems = await db.syncQueue.toArray();
+    const updates = queueItems
+      .filter((queueItem) => queueItem.status !== 'synced')
+      .map((queueItem) => {
+        let nextPayload = queueItem.payload;
+        let changed = false;
+
+        if (String(queueItem.payload?.id) === String(localItem.id)) {
+          nextPayload = { ...nextPayload, id: syncedItem.id };
+          changed = true;
+        }
+
+        if (String(queueItem.payload?.store_id) === String(localItem.id)) {
+          nextPayload = { ...nextPayload, store_id: syncedItem.id };
+          changed = true;
+        }
+
+        return changed ? { id: queueItem.id, payload: nextPayload } : null;
+      })
+      .filter(Boolean);
+
+    for (const update of updates) {
+      await db.syncQueue.update(update.id, { payload: update.payload });
+    }
+  });
+}
+
+async function reconcileCreatedCategory(localItem, syncedItem) {
+  if (!localItem || !syncedItem) {
+    return;
+  }
+
+  if (String(localItem.id) === String(syncedItem.id)) {
+    await db.categories.put(syncedItem);
+    return;
+  }
+
+  await db.transaction('rw', db.categories, db.inventoryItems, db.syncQueue, async () => {
+    await db.categories.delete(localItem.id);
+    await db.categories.put({ ...syncedItem });
+    await db.inventoryItems.where('category_id').equals(localItem.id).modify({ category_id: syncedItem.id });
+
+    const queueItems = await db.syncQueue.toArray();
+    const updates = queueItems
+      .filter((queueItem) => queueItem.status !== 'synced')
+      .map((queueItem) => {
+        let nextPayload = queueItem.payload;
+        let changed = false;
+
+        if (String(queueItem.payload?.id) === String(localItem.id)) {
+          nextPayload = { ...nextPayload, id: syncedItem.id };
+          changed = true;
+        }
+
+        if (String(queueItem.payload?.category_id) === String(localItem.id)) {
+          nextPayload = { ...nextPayload, category_id: syncedItem.id };
+          changed = true;
+        }
+
+        return changed ? { id: queueItem.id, payload: nextPayload } : null;
+      })
+      .filter(Boolean);
+
+    for (const update of updates) {
+      await db.syncQueue.update(update.id, { payload: update.payload });
+    }
+  });
+}
+
+async function applyRemoteRecord(entity, remoteData) {
+  if (!remoteData) {
+    return;
+  }
+
+  if (entity === 'trips') {
+    await db.trips.put(remoteData);
+    return;
+  }
+
+  if (entity === 'inventoryItems') {
+    await db.inventoryItems.put(remoteData);
+    return;
+  }
+
+  if (entity === 'stores') {
+    await db.stores.put(remoteData);
+    return;
+  }
+
+  if (entity === 'categories') {
+    await db.categories.put(remoteData);
+  }
+}
+
+async function updateLocalBaseVersion(item, remoteData) {
+  if (!remoteData?.updated_at) {
+    return;
+  }
+
+  if (item.entity === 'tripChecklist') {
+    const trip = await db.trips.get(item.payload?.trip_id);
+    if (trip) {
+      await db.trips.put({ ...trip, updated_at: remoteData.updated_at });
+    }
+    return;
+  }
+
+  const nextRecord = { ...item.payload, updated_at: remoteData.updated_at };
+  await reconcileUpdatedRecord(item.entity, nextRecord);
+}
+
+function buildConflictRetryPayload(item, remoteData) {
+  if (item.entity === 'tripChecklist') {
+    return {
+      ...item.payload,
+      base_updated_at: remoteData?.updated_at || item.payload?.base_updated_at || ''
+    };
+  }
+
+  return { ...item.payload, updated_at: remoteData?.updated_at || item.payload?.updated_at || '' };
+}
+
+async function executeRemoteMutation(item) {
+  if (item.entity === 'trips' && item.action === 'create') {
+    const response = await apiClient.createTrip(item.payload);
+    if (!response?.conflict) {
+      await reconcileCreatedTrip(item.payload, response.item);
+    }
+    return response;
+  }
+
+  if (item.entity === 'trips' && item.action === 'update') {
+    const response = await apiClient.updateTrip(item.payload);
+    if (!response?.conflict) {
+      await reconcileUpdatedRecord('trips', response.item);
+    }
+    return response;
+  }
+
+  if (item.entity === 'tripChecklist' && item.action === 'replace') {
+    const response = await apiClient.replaceTripChecklist(item.payload);
+    if (response && !response.conflict) {
+      await reconcileReplacedChecklist(item.payload.trip_id, item.payload.items, response.items);
+      if (response.trip) {
+        await reconcileUpdatedRecord('trips', response.trip);
+      }
+    }
+    return response;
+  }
+
+  if (item.entity === 'inventoryItems' && item.action === 'create') {
+    const response = await apiClient.createInventoryItem(item.payload);
+    if (!response?.conflict) {
+      await reconcileCreatedInventoryItem(item.payload, response.item);
+    }
+    return response;
+  }
+
+  if (item.entity === 'inventoryItems' && item.action === 'update') {
+    const response = await apiClient.updateInventoryItem(item.payload);
+    if (!response?.conflict) {
+      await reconcileUpdatedRecord('inventoryItems', response.item);
+    }
+    return response;
+  }
+
+  if (item.entity === 'inventoryItems' && item.action === 'delete') {
+    const response = await apiClient.deleteInventoryItem(item.payload);
+    if (!response?.conflict) {
+      await reconcileDeletedRecord('inventoryItems', item.payload);
+    }
+    return response;
+  }
+
+  if (item.entity === 'stores' && item.action === 'create') {
+    const response = await apiClient.createStore(item.payload);
+    if (!response?.conflict) {
+      await reconcileCreatedStore(item.payload, response.item);
+    }
+    return response;
+  }
+
+  if (item.entity === 'stores' && item.action === 'update') {
+    const response = await apiClient.updateStore(item.payload);
+    if (!response?.conflict) {
+      await reconcileUpdatedRecord('stores', response.item);
+    }
+    return response;
+  }
+
+  if (item.entity === 'stores' && item.action === 'delete') {
+    const response = await apiClient.deleteStore(item.payload);
+    if (!response?.conflict) {
+      await reconcileDeletedRecord('stores', item.payload);
+    }
+    return response;
+  }
+
+  if (item.entity === 'categories' && item.action === 'create') {
+    const response = await apiClient.createCategory(item.payload);
+    if (!response?.conflict) {
+      await reconcileCreatedCategory(item.payload, response.item);
+    }
+    return response;
+  }
+
+  if (item.entity === 'categories' && item.action === 'update') {
+    const response = await apiClient.updateCategory(item.payload);
+    if (!response?.conflict) {
+      await reconcileUpdatedRecord('categories', response.item);
+    }
+    return response;
+  }
+
+  if (item.entity === 'categories' && item.action === 'delete') {
+    const response = await apiClient.deleteCategory(item.payload);
+    if (!response?.conflict) {
+      await reconcileDeletedRecord('categories', item.payload);
+    }
+    return response;
+  }
+
+  throw new Error(`Unsupported mutation: ${item.entity}/${item.action}`);
+}
+
+function isConnectivityError(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return (
+    message.includes('could not reach google apps script') ||
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('network request failed')
+  );
+}
+
+async function resolveConflictResponse(item, response, onConflict) {
+  if (!response?.conflict) {
+    return { status: 'synced', response };
+  }
+
+  if (!onConflict) {
+    throw new Error(response.message || 'Sync conflict detected.');
+  }
+
+  const remoteData = response.remote_trip || response.remote_item;
+  const choice = await onConflict(item.entity, item.payload, remoteData);
+
+  if (choice === 'remote') {
+    if (item.entity === 'tripChecklist') {
+      await pullAndMerge();
+      return { status: 'synced', response };
+    }
+
+    await applyRemoteRecord(item.entity, remoteData);
+    return { status: 'synced', response };
+  }
+
+  const nextPayload = buildConflictRetryPayload(item, remoteData);
+  await updateLocalBaseVersion(item, remoteData);
+  await queueMutation(item.entity, item.action, nextPayload);
+  return { status: 'queued', response };
+}
+
+export async function syncMutationNowOrEnqueue(item, options = {}) {
+  const { onConflict } = options;
+
+  if (!navigator.onLine) {
+    await queueMutation(item.entity, item.action, item.payload);
+    return { status: 'queued' };
+  }
+
+  try {
+    const response = await executeRemoteMutation(item);
+    return await resolveConflictResponse(item, response, onConflict);
+  } catch (error) {
+    if (isConnectivityError(error)) {
+      await queueMutation(item.entity, item.action, item.payload);
+      return { status: 'queued', error };
+    }
+
+    throw error;
+  }
+}
+
 export async function processQueue(options = {}) {
   const { onConflict } = options;
   if (inFlightQueueSync) {
@@ -197,74 +541,30 @@ export async function processQueue(options = {}) {
   }
 
   inFlightQueueSync = (async () => {
-    const pendingItems = await db.syncQueue.where('status').equals('pending').toArray();
+    const pendingItems = await db.syncQueue.where('status').anyOf(['pending', 'failed']).toArray();
 
     for (const item of pendingItems) {
       try {
-        let response;
-        if (item.entity === 'trips' && item.action === 'create') {
-          response = await apiClient.createTrip(item.payload);
-          await reconcileCreatedTrip(item.payload, response.item);
-        } else if (item.entity === 'trips' && item.action === 'update') {
-          response = await apiClient.updateTrip(item.payload);
-        } else if (item.entity === 'tripChecklist' && item.action === 'replace') {
-          response = await apiClient.replaceTripChecklist(item.payload);
-          if (response && !response.conflict) {
-            await reconcileReplacedChecklist(item.payload.trip_id, item.payload.items, response.items);
-          }
-        } else if (item.entity === 'inventoryItems' && item.action === 'create') {
-          response = await apiClient.createInventoryItem(item.payload);
-          await reconcileCreatedInventoryItem(item.payload, response.item);
-        } else if (item.entity === 'inventoryItems' && item.action === 'update') {
-          response = await apiClient.updateInventoryItem(item.payload);
-        } else if (item.entity === 'inventoryItems' && item.action === 'delete') {
-          response = await apiClient.deleteInventoryItem(item.payload);
-        } else if (item.entity === 'stores' && item.action === 'create') {
-          response = await apiClient.createStore(item.payload);
-          if (response.item?.id && String(response.item.id) !== String(item.payload.id)) {
-             await db.transaction('rw', db.stores, db.trips, async () => {
-               await db.stores.delete(item.payload.id);
-               await db.stores.put(response.item);
-               await db.trips.where('store_id').equals(item.payload.id).modify({ store_id: response.item.id });
-             });
-          }
-        } else if (item.entity === 'stores' && item.action === 'update') {
-          response = await apiClient.updateStore(item.payload);
-        } else if (item.entity === 'stores' && item.action === 'delete') {
-          response = await apiClient.deleteStore(item.payload);
-        } else if (item.entity === 'categories' && item.action === 'create') {
-          response = await apiClient.createCategory(item.payload);
-          if (response.item?.id && String(response.item.id) !== String(item.payload.id)) {
-            await db.transaction('rw', db.categories, db.inventoryItems, async () => {
-              await db.categories.delete(item.payload.id);
-              await db.categories.put(response.item);
-              await db.inventoryItems.where('category_id').equals(item.payload.id).modify({ category_id: response.item.id });
-            });
-          }
-        } else if (item.entity === 'categories' && item.action === 'update') {
-          response = await apiClient.updateCategory(item.payload);
-        } else if (item.entity === 'categories' && item.action === 'delete') {
-          response = await apiClient.deleteCategory(item.payload);
-        }
+        await db.syncQueue.update(item.id, { status: 'pending', error: null });
+        const response = await executeRemoteMutation(item);
 
         if (response && response.conflict && onConflict) {
           const remoteData = response.remote_trip || response.remote_item;
           const choice = await onConflict(item.entity, item.payload, remoteData);
           
           if (choice === 'remote') {
-            // REMOTE WINS: Overwrite local with remote and mark as synced
-            if (item.entity === 'trips') await db.trips.put(remoteData);
-            if (item.entity === 'inventoryItems') await db.inventoryItems.put(remoteData);
-            if (item.entity === 'stores') await db.stores.put(remoteData);
-            if (item.entity === 'categories') await db.categories.put(remoteData);
-            
+            if (item.entity === 'tripChecklist') {
+              await pullAndMerge();
+            } else {
+              await applyRemoteRecord(item.entity, remoteData);
+            }
             await db.syncQueue.update(item.id, { status: 'synced' });
             continue;
           } else {
-            // LOCAL WINS: Update local "base_updated_at" to match remote so next push succeeds
-            const nextPayload = { ...item.payload, updated_at: remoteData.updated_at };
-            await db.syncQueue.update(item.id, { payload: nextPayload });
-            throw new Error('Conflict resolved to Local. Please try syncing again to overwrite Cloud.');
+            const nextPayload = buildConflictRetryPayload(item, remoteData);
+            await updateLocalBaseVersion(item, remoteData);
+            await db.syncQueue.update(item.id, { payload: nextPayload, status: 'failed' });
+            continue;
           }
         }
 
@@ -414,7 +714,6 @@ export function useOfflineSync() {
     };
   }, []);
 
-  // Track online/offline status only — no auto-sync
   useEffect(() => {
     function handleOnline() { setIsOnline(true); }
     function handleOffline() { setIsOnline(false); }
@@ -428,7 +727,8 @@ export function useOfflineSync() {
     };
   }, []);
 
-  const syncNow = useCallback(async () => {
+  const syncNow = useCallback(async (options = {}) => {
+    const { suppressErrors = false } = options;
     if (isSyncing) return;
     setSyncError(null);
     setIsSyncing(true);
@@ -450,11 +750,35 @@ export function useOfflineSync() {
       setPendingCount(count);
     } catch (error) {
       setSyncError(error.message || 'Sync failed');
-      throw error;
+      if (!suppressErrors) {
+        throw error;
+      }
     } finally {
       setIsSyncing(false);
     }
-  }, [isSyncing]);
+  }, [isSyncing, showConflict]);
+
+  useEffect(() => {
+    if (!isOnline || isSyncing || pendingCount === 0) {
+      return;
+    }
+
+    void syncNow({ suppressErrors: true });
+  }, [isOnline, isSyncing, pendingCount, syncNow]);
+
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        void syncNow({ suppressErrors: true });
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [syncNow]);
 
   return { isOnline, isSyncing, lastSynced, pendingCount, syncError, syncNow };
 }

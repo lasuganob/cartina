@@ -19,23 +19,22 @@ import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, queueMutation } from '../../../lib/db';
+import { db } from '../../../lib/db';
 import { useAppContext } from '../../../context/AppContext';
 import { apiClient } from '../../../api/client';
-
-
-
+import { syncMutationNowOrEnqueue } from '../../../hooks/useOfflineSync';
 
 const PAGE_SIZE = 5;
 
 export default function StoresManager() {
   const stores = useLiveQuery(() => db.stores.toArray()) || [];
-  const { showSnackbar } = useAppContext();
+  const { showSnackbar, showConflict } = useAppContext();
   
   const [editingStore, setEditingStore] = useState(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [name, setName] = useState('');
   const [page, setPage] = useState(1);
+  const [saving, setSaving] = useState(false);
 
   const paginatedStores = useMemo(() => {
     const startIndex = (page - 1) * PAGE_SIZE;
@@ -58,7 +57,9 @@ export default function StoresManager() {
 
   const handleSave = async () => {
     if (!name.trim()) return;
+    if (saving) return;
 
+    setSaving(true);
     try {
       let storeId = editingStore?.id;
 
@@ -74,16 +75,36 @@ export default function StoresManager() {
 
       const storeData = {
         id: storeId,
-        name: name.trim()
+        name: name.trim(),
+        logo_path: editingStore?.logo_path || '',
+        updated_at: editingStore?.updated_at || ''
       };
 
       await db.stores.put(storeData);
-      await queueMutation('stores', editingStore ? 'update' : 'create', storeData);
 
-      
-      showSnackbar(`Store ${editingStore ? 'updated' : 'added'} successfully`, 'success');
+      setSaving(false);
       setPanelOpen(false);
+
+      const result = await syncMutationNowOrEnqueue(
+        {
+          entity: 'stores',
+          action: editingStore ? 'update' : 'create',
+          payload: storeData
+        },
+        {
+          onConflict: async (entityName, localData, remoteData) =>
+            new Promise((resolve) => {
+              showConflict(entityName, localData, remoteData, resolve);
+            })
+        }
+      );
+
+      showSnackbar(
+        `Store ${editingStore ? 'updated' : 'added'} ${result.status === 'synced' ? 'and synced.' : 'locally and queued for sync.'}`,
+        'success'
+      );
     } catch (error) {
+      setSaving(false);
       showSnackbar('Error saving store: ' + error.message, 'error');
     }
   };
@@ -91,10 +112,23 @@ export default function StoresManager() {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this store?')) {
       try {
+        const existingStore = stores.find((store) => String(store.id) === String(id));
         await db.stores.delete(id);
-        await queueMutation('stores', 'delete', { id });
+        const result = await syncMutationNowOrEnqueue(
+          {
+            entity: 'stores',
+            action: 'delete',
+            payload: { id, updated_at: existingStore?.updated_at || '' }
+          },
+          {
+            onConflict: async (entityName, localData, remoteData) =>
+              new Promise((resolve) => {
+                showConflict(entityName, localData, remoteData, resolve);
+              })
+          }
+        );
 
-        showSnackbar('Store deleted', 'success');
+        showSnackbar(result.status === 'synced' ? 'Store deleted and synced.' : 'Store deleted locally and queued for sync.', 'success');
       } catch (error) {
         showSnackbar('Error deleting store', 'error');
       }
@@ -204,7 +238,7 @@ export default function StoresManager() {
             disabled={!name.trim()}
             sx={{ py: 1.5, borderRadius: 2 }}
           >
-            {editingStore ? 'Update Store' : 'Add Store'}
+            {editingStore ? 'Update Store' : saving ? 'Adding...' : 'Add Store'}
           </Button>
           <Button 
             variant="text" 

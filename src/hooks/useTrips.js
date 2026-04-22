@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { apiClient } from '../api/client';
-import { clearQueuedChecklistReplaces, queueMutation, db, getShoppingDraftKey, getShoppingSessionKey } from '../lib/db';
+import { clearQueuedChecklistReplaces, db, getShoppingDraftKey, getShoppingSessionKey } from '../lib/db';
 
 import { useAppContext } from '../context/AppContext';
+import { syncMutationNowOrEnqueue } from './useOfflineSync';
 
 let inFlightTripsSync = null;
 
@@ -195,7 +196,7 @@ export function useTrips() {
       store: trip.store_id ? storesById[String(trip.store_id)] || null : null
     }));
   }, []);
-  const { showSnackbar } = useAppContext();
+  const { showSnackbar, showConflict } = useAppContext();
 
   useEffect(() => {
     if (tripsData !== undefined) {
@@ -259,9 +260,24 @@ export function useTrips() {
     });
 
     await db.trips.put(trip);
-    await queueMutation('trips', 'create', trip);
+    const result = await syncMutationNowOrEnqueue(
+      {
+        entity: 'trips',
+        action: 'create',
+        payload: trip
+      },
+      {
+        onConflict: async (entityName, localData, remoteData) =>
+          new Promise((resolve) => {
+            showConflict(entityName, localData, remoteData, resolve);
+          })
+      }
+    );
 
-    showSnackbar('Trip saved locally and queued for sync.', 'success');
+    showSnackbar(
+      result.status === 'synced' ? 'Trip saved and synced.' : 'Trip saved locally and queued for sync.',
+      'success'
+    );
 
     const persistedTrip = await db.trips.get(trip.id);
     if (persistedTrip) {
@@ -294,11 +310,24 @@ export function useTrips() {
     const updatedTrip = normalizeTrip({
       ...existingTrip,
       ...values,
-      id: existingTrip.id
+      id: existingTrip.id,
+      updated_at: existingTrip.updated_at
     });
 
     await db.trips.put(updatedTrip);
-    await queueMutation('trips', 'update', updatedTrip);
+    const result = await syncMutationNowOrEnqueue(
+      {
+        entity: 'trips',
+        action: 'update',
+        payload: updatedTrip
+      },
+      {
+        onConflict: async (entityName, localData, remoteData) =>
+          new Promise((resolve) => {
+            showConflict(entityName, localData, remoteData, resolve);
+          })
+      }
+    );
 
     // If trip is completed, clear any persistent shopping session or draft from localStorage
     if (updatedTrip.status === 'completed' || updatedTrip.status === 'cancelled') {
@@ -307,7 +336,10 @@ export function useTrips() {
     }
 
 
-    showSnackbar('Trip updated locally and queued for sync.', 'success');
+    showSnackbar(
+      result.status === 'synced' ? 'Trip updated and synced.' : 'Trip updated locally and queued for sync.',
+      'success'
+    );
     return updatedTrip;
   }
 
@@ -371,14 +403,36 @@ export function useTrips() {
     await clearQueuedChecklistReplaces(tripId);
 
     if (sync) {
-      await queueMutation('tripChecklist', 'replace', {
-        trip_id: tripId,
-        items: normalizedItems
-      });
+      const trip = await db.trips.get(tripId);
+      const result = await syncMutationNowOrEnqueue(
+        {
+          entity: 'tripChecklist',
+          action: 'replace',
+          payload: {
+            trip_id: tripId,
+            items: normalizedItems,
+            base_updated_at: trip?.updated_at || ''
+          }
+        },
+        {
+          onConflict: async (entityName, localData, remoteData) =>
+            new Promise((resolve) => {
+              showConflict(entityName, localData, remoteData, resolve);
+            })
+        }
+      );
+
+      if (notify) {
+        showSnackbar(
+          result.status === 'synced' ? 'Checklist saved and synced.' : 'Checklist saved locally.',
+          'success'
+        );
+      }
+      return normalizedItems;
     }
 
     if (notify) {
-      showSnackbar(sync ? 'Checklist saved locally.' : 'Checklist changes saved on this device.', 'success');
+      showSnackbar('Checklist changes saved on this device.', 'success');
     }
     return normalizedItems;
   }

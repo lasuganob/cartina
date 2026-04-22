@@ -1,4 +1,4 @@
-import { Autocomplete, Box, Button, Card, CardContent, Grid, Stack, TextField, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { Autocomplete, Button, Card, CardContent, Grid, Stack, TextField, Typography, useMediaQuery, useTheme } from '@mui/material';
 import AddBoxRoundedIcon from '@mui/icons-material/AddBoxRounded';
 import { formatCurrency } from '../../../../../utils/formatCurrency';
 import QuantitySelector from '../../../../../components/QuantitySelector';
@@ -126,7 +126,9 @@ export default function AddItem({ inventoryData, addDraft, setAddDraft, handleAd
                   p: { md: 0 } 
                 }}
               >
-                {isMobile ? 'Add Item' : <AddBoxRoundedIcon sx={{ fontSize: 28 }} />}
+                {isMobile 
+                  ? 'Add Item'
+                  : <AddBoxRoundedIcon sx={{ fontSize: 28 }} />}
               </Button>
             </Grid>
           </Grid>

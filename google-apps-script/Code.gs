@@ -127,9 +127,15 @@ const POST_ROUTES = {
     };
   },
   "/trip-checklist/replace": function (_, payload) {
+    var result = replaceTripChecklist_(payload);
+    if (result && result.conflict) {
+      return result;
+    }
+
     return {
       success: true,
-      items: replaceTripChecklist_(payload),
+      items: result.items,
+      trip: result.trip,
     };
   },
   "/inventory-items": function (_, payload) {
@@ -293,7 +299,10 @@ function replaceTripChecklist_(payload) {
 
   if (!items.length) {
     rewriteSheetBody_(sheet, headers, preservedRows);
-    return [];
+    return {
+      items: [],
+      trip: tripMatch ? buildTripRecord_({}, tripRecord) : null,
+    };
   }
 
   var normalizedItems = items.map(function (item, index) {
@@ -316,14 +325,18 @@ function replaceTripChecklist_(payload) {
   rewriteSheetBody_(sheet, headers, preservedRows.concat(rows));
 
   // Update trip's updated_at
+  var updatedTrip = null;
   if (tripMatch) {
-    var updatedTrip = buildTripRecord_({}, tripRecord);
+    updatedTrip = buildTripRecord_({}, tripRecord);
     tripsSheet
       .getRange(tripMatch.rowIndex + 1, 1, 1, TRIP_HEADERS.length)
       .setValues([toOrderedRow_(TRIP_HEADERS, updatedTrip)]);
   }
 
-  return normalizedItems;
+  return {
+    items: normalizedItems,
+    trip: updatedTrip,
+  };
 }
 
 function getInventoryItems_() {

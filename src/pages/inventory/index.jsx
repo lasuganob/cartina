@@ -19,8 +19,9 @@ import { useLiveQuery } from 'dexie-react-hooks';
 
 import PageHeader from '../../components/PageHeader';
 import { useAppContext } from '../../context/AppContext';
-import { db, queueMutation } from '../../lib/db';
+import { db } from '../../lib/db';
 import { apiClient } from '../../api/client';
+import { syncMutationNowOrEnqueue } from '../../hooks/useOfflineSync';
 
 
 
@@ -47,7 +48,9 @@ function normalizeInventoryItem(values, existingItem, newId) {
     category_id: String(values.category_id || '').trim(),
     usual_price: values.usual_price === '' ? 0 : Number(values.usual_price),
     barcode: String(values.barcode || '').trim(),
-    created_at: existingItem?.created_at || new Date().toISOString()
+    has_no_barcode: existingItem?.has_no_barcode || false,
+    created_at: existingItem?.created_at || new Date().toISOString(),
+    updated_at: existingItem?.updated_at || ''
   };
 }
 
@@ -84,7 +87,7 @@ export default function InventoryPage() {
   const [page, setPage] = useState(1);
   
   const { lookup } = useBarcodeLookup();
-  const { showSnackbar } = useAppContext();
+  const { showSnackbar, showConflict } = useAppContext();
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -215,9 +218,24 @@ export default function InventoryPage() {
       const action = editingItem ? 'update' : 'create';
 
       await db.inventoryItems.put(normalizedItem);
-      await queueMutation('inventoryItems', action, normalizedItem);
+      const result = await syncMutationNowOrEnqueue(
+        {
+          entity: 'inventoryItems',
+          action,
+          payload: normalizedItem
+        },
+        {
+          onConflict: async (entityName, localData, remoteData) =>
+            new Promise((resolve) => {
+              showConflict(entityName, localData, remoteData, resolve);
+            })
+        }
+      );
 
-      showSnackbar(`Inventory item ${editingItem ? 'updated' : 'saved'} locally and queued for sync.`, 'success');
+      showSnackbar(
+        `Inventory item ${editingItem ? 'updated' : 'saved'} ${result.status === 'synced' ? 'and synced.' : 'locally and queued for sync.'}`,
+        'success'
+      );
       handleCloseDialog();
     } finally {
       setBusy(false);
@@ -227,9 +245,26 @@ export default function InventoryPage() {
   async function handleDelete(item) {
     handleCloseMenu();
     await db.inventoryItems.delete(item.id);
-    await queueMutation('inventoryItems', 'delete', { id: item.id });
+    const result = await syncMutationNowOrEnqueue(
+      {
+        entity: 'inventoryItems',
+        action: 'delete',
+        payload: { id: item.id, updated_at: item.updated_at || '' }
+      },
+      {
+        onConflict: async (entityName, localData, remoteData) =>
+          new Promise((resolve) => {
+            showConflict(entityName, localData, remoteData, resolve);
+          })
+      }
+    );
 
-    showSnackbar('Inventory item deleted locally and queued for sync.', 'success');
+    showSnackbar(
+      result.status === 'synced'
+        ? 'Inventory item deleted and synced.'
+        : 'Inventory item deleted locally and queued for sync.',
+      'success'
+    );
   }
 
   function handleOpenMenu(event, item) {

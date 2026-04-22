@@ -53,6 +53,9 @@ async function request(path, options = {}) {
   }
 
   if (data.success === false) {
+    if (data.conflict) {
+      return data;
+    }
     throw new Error(data.message || 'Google Apps Script returned an error.');
   }
 

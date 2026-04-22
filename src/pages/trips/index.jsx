@@ -1,12 +1,13 @@
 import Grid from '@mui/material/Grid';
 import PageHeader from '../../components/PageHeader';
 import { useTrips } from '../../hooks/useTrips';
-import { useOfflineSync } from '../../hooks/useOfflineSync';
+import { useAppContext } from '../../context/AppContext';
 import TripsListSection from './sections/TripsListSection';
 
 export default function TripsPage() {
   const tripsState = useTrips();
-  const { isOnline } = useOfflineSync();
+  const { syncState } = useAppContext();
+  const { isOnline } = syncState;
 
   return (
     <>

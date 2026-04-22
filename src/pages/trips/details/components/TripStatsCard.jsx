@@ -93,7 +93,7 @@ export default function TripStatsCard({ trip }) {
           </Stack>
 
           <Grid container spacing={1}>
-            <Grid size={{ xs: 6, sm: 3 }}>
+            <Grid size={{ xs: 6 }}>
               <MetricCard
                 icon={<CheckCircleRoundedIcon sx={{ fontSize: 16, color: 'success.main' }} />}
                 label="Checked"
@@ -101,7 +101,7 @@ export default function TripStatsCard({ trip }) {
                 hint={`${purchased.length} purchased`}
               />
             </Grid>
-            <Grid size={{ xs: 6, sm: 3 }}>
+            <Grid size={{ xs: 6 }}>
               <MetricCard
                 icon={<PlaylistAddCheckRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />}
                 label="Planned"
@@ -109,7 +109,7 @@ export default function TripStatsCard({ trip }) {
                 hint={`${adhoc.length} custom`}
               />
             </Grid>
-            <Grid size={{ xs: 6, sm: 3 }}>
+            <Grid size={{ xs: 6 }}>
               <MetricCard
                 icon={<AddShoppingCartRoundedIcon sx={{ fontSize: 16, color: unplanned.length > 0 ? 'warning.main' : 'text.secondary' }} />}
                 label="Unplanned"
@@ -118,7 +118,7 @@ export default function TripStatsCard({ trip }) {
                 color={unplanned.length > 0 ? 'warning.main' : undefined}
               />
             </Grid>
-            <Grid size={{ xs: 6, sm: 3 }}>
+            <Grid size={{ xs: 6 }}>
               <MetricCard
                 icon={<ScheduleRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />}
                 label="Time"
