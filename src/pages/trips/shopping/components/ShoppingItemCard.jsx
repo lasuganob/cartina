@@ -18,12 +18,16 @@ import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import { formatCurrency } from '../../../../utils/formatCurrency';
 import QuantitySelector from '../../../../components/QuantitySelector';
 
-export default function ShoppingItemCard({ item, index, onChange, open, onOpen, onClose, scannerStatus }) {
+export default function ShoppingItemCard({ item, index, onChange, open, onOpen, onClose, scannerStatus, categories = [] }) {
   const [actualPriceError, setActualPriceError] = useState('');
 
   const plannedValue = item.planned_price === '' ? null : Number(item.planned_price);
   const actualValue = item.actual_price === '' ? null : Number(item.actual_price);
   const lineSubtotal = (actualValue || 0) * Number(item.quantity || 1);
+
+  const categoryName = item.category?.name 
+    || item.inventory_item?.category?.name 
+    || categories.find(c => String(c.id) === String(item.category_id))?.name;
 
   useEffect(() => {
     if (!open) {
@@ -76,9 +80,9 @@ export default function ShoppingItemCard({ item, index, onChange, open, onOpen, 
                 </Stack>
 
                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                  {item.inventory_item?.category?.name ? (
+                  {categoryName ? (
                     <Typography variant="caption" color="text.secondary">
-                      {item.inventory_item.category.name}
+                      {categoryName}
                     </Typography>
                   ) : (
                     <Typography variant="caption" color="text.disabled">
@@ -160,7 +164,7 @@ export default function ShoppingItemCard({ item, index, onChange, open, onOpen, 
                 {item.item_name || ''}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ fontSize: "12px" }}>
-                {item.inventory_item?.category?.name || 'No category'}
+                {categoryName || 'No category'}
               </Typography>
             </Stack>
             <Stack>

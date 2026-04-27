@@ -90,7 +90,7 @@ export default function TripShoppingPage() {
   const { trips, loading, error, updateTrip, replaceTripChecklist } = useTrips();
   const [busy, setBusy] = useState(false);
   const [draftItems, setDraftItems] = useState([]);
-  const [unplannedDraft, setUnplannedDraft] = useState({ item_name: '', quantity: 1, actual_price: '', barcode: '' });
+  const [unplannedDraft, setUnplannedDraft] = useState({ item_name: '', quantity: 1, actual_price: '', barcode: '', category_id: '' });
   const [showUnplannedForm, setShowUnplannedForm] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [activeItemId, setActiveItemId] = useState(null);
@@ -307,6 +307,7 @@ export default function TripShoppingPage() {
         actual_price: unplannedDraft.actual_price,
         inventory_item_id: inventoryItem?.id || '',
         inventory_item: inventoryItem,
+        category_id: unplannedDraft.category_id || inventoryItem?.category_id || '',
         is_purchased: unplannedDraft.actual_price !== '',
         is_unplanned: true,
         sort_order: -1,
@@ -316,7 +317,7 @@ export default function TripShoppingPage() {
     );
 
     setDraftItems((current) => [newItem, ...current]);
-    setUnplannedDraft({ item_name: '', quantity: 1, actual_price: '', barcode: '' });
+    setUnplannedDraft({ item_name: '', quantity: 1, actual_price: '', barcode: '', category_id: '' });
     setShowUnplannedForm(false);
   }
 
@@ -342,7 +343,8 @@ export default function TripShoppingPage() {
         item_name: productInfo?.name || '',
         quantity: 1,
         actual_price: productInfo?.price ? String(productInfo.price) : '',
-        barcode: barcode
+        barcode: barcode,
+        category_id: productInfo?.category_id || ''
       });
       setScannerStatus('not_found');
       setShowUnplannedForm(true);
@@ -559,6 +561,7 @@ export default function TripShoppingPage() {
                               setScannerStatus(null);
                             }}
                             scannerStatus={activeItemId === (item.draft_key || item.id) ? scannerStatus : null}
+                            categories={categories}
                           />
                         ))}
                     </Stack>
@@ -600,6 +603,7 @@ export default function TripShoppingPage() {
                               setScannerStatus(null);
                             }}
                             scannerStatus={activeItemId === (item.draft_key || item.id) ? scannerStatus : null}
+                            categories={categories}
                           />
                         ))}
                     </Stack>

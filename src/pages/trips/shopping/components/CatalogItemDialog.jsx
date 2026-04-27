@@ -1,12 +1,9 @@
 import {
   Box,
   Button,
-  InputAdornment,
   Stack,
   SwipeableDrawer,
-  TextField,
   Typography,
-  Alert
 } from '@mui/material';
 import InventoryRoundedIcon from '@mui/icons-material/InventoryRounded';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
@@ -15,7 +12,6 @@ import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
 import { useState } from 'react';
 import { db } from '../../../../lib/db';
 import { apiClient } from '../../../../api/client';
-import CategorySelector from '../../../../components/CategorySelector';
 import BarcodeScannerDialog from '../../../../components/BarcodeScannerDialog';
 import { useAppContext } from '../../../../context/AppContext';
 import { syncMutationNowOrEnqueue } from '../../../../hooks/useOfflineSync';
@@ -27,14 +23,14 @@ export default function CatalogItemDialog({
   onComplete,
   categories
 }) {
-  const [step, setStep] = useState('ask_inventory'); // 'ask_inventory' | 'scan' | 'scanning' | 'category'
-  const [categoryId, setCategoryId] = useState(item.category_id || '');
+  const [step, setStep] = useState('ask_inventory'); // 'ask_inventory' | 'scan' | 'scanning'
+  const categoryId = item.category_id || '';
   const [barcode, setBarcode] = useState('');
   const [isWetMarket, setIsWetMarket] = useState(false);
   const [busy, setBusy] = useState(false);
   const { showConflict } = useAppContext();
 
-  const handleSaveToInventory = async () => {
+  const handleSaveToInventory = async (isWetMarketOverride = false) => {
     setBusy(true);
     try {
       let inventoryItemId;
@@ -47,11 +43,13 @@ export default function CatalogItemDialog({
       }
       
       const selectedCategory = categories.find(c => String(c.id) === String(categoryId));
+      const isWetMarketFinal = isWetMarketOverride || isWetMarket;
+      
       const newItem = {
         id: inventoryItemId,
         name: item.item_name.trim(),
-        barcode: isWetMarket ? '' : barcode.trim(),
-        has_no_barcode: isWetMarket,
+        barcode: isWetMarketFinal ? '' : barcode.trim(),
+        has_no_barcode: isWetMarketFinal,
         category_id: categoryId,
         usual_price: Number(item.actual_price || 0),
         created_at: new Date().toISOString(),
@@ -176,11 +174,12 @@ export default function CatalogItemDialog({
                 <Button
                   fullWidth
                   variant="contained"
-                  onClick={() => setStep('category')}
+                  onClick={() => handleSaveToInventory(false)}
+                  disabled={busy}
                   endIcon={<ArrowForwardRoundedIcon />}
                   sx={{ borderRadius: 1, py: 1.5 }}
                 >
-                  Continue to Category
+                  {busy ? 'Saving...' : 'Complete & Purchase'}
                 </Button>
               ): (
                 <>
@@ -202,8 +201,9 @@ export default function CatalogItemDialog({
                     startIcon={<StorefrontRoundedIcon />}
                     onClick={() => {
                       setIsWetMarket(true);
-                      setStep('category');
+                      handleSaveToInventory(true);
                     }}
+                    disabled={busy}
                     sx={{ fontSize: '12px', borderRadius: 0 }}
                   >
                     No Barcode (Wet Market/Produce)
@@ -212,7 +212,7 @@ export default function CatalogItemDialog({
               )}
             </Stack>
 
-            <Button onClick={() => setStep('ask_inventory')} color="inherit">
+            <Button onClick={() => setStep('ask_inventory')} color="inherit" disabled={busy}>
               Back
             </Button>
           </Stack>
@@ -226,55 +226,10 @@ export default function CatalogItemDialog({
               onClose={() => setStep('scan')}
               onScanSuccess={(code) => {
                 setBarcode(code);
-                setStep('category');
+                setStep('scan');
               }}
             />
           </Box>
-        )}
-
-        {step === 'category' && (
-          <Stack spacing={3} py={2}>
-            <Stack spacing={1}>
-              <Typography variant="subtitle1" fontWeight={700}>
-                Select Category
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Which category does "{item.item_name}" belong to?
-              </Typography>
-            </Stack>
-
-            <CategorySelector
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              categories={categories}
-            />
-
-            <Stack spacing={1.5}>
-              <Button
-                fullWidth
-                variant="contained"
-                color="primary"
-                size="large"
-                startIcon={<ArrowForwardRoundedIcon />}
-                onClick={handleSaveToInventory}
-                disabled={busy || !categoryId}
-                sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
-              >
-                {busy ? 'Saving...' : 'Complete & Purchase'}
-              </Button>
-              <Button
-                fullWidth
-                variant="outlined"
-                color="inherit"
-                size="large"
-                onClick={() => setStep('scan')}
-                disabled={busy}
-                sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
-              >
-                Back
-              </Button>
-            </Stack>
-          </Stack>
         )}
       </Box>
     </SwipeableDrawer>

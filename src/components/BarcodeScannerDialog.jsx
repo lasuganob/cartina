@@ -67,6 +67,14 @@ export default function BarcodeScannerDialog({ open, onClose, onScanSuccess, var
     setIsDesktop(!mobileDevicePattern.test(navigator.userAgent));
   }, []);
 
+  const onScanSuccessRef = useRef(onScanSuccess);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onScanSuccessRef.current = onScanSuccess;
+    onCloseRef.current = onClose;
+  }, [onScanSuccess, onClose]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -123,8 +131,8 @@ export default function BarcodeScannerDialog({ open, onClose, onScanSuccess, var
           (result, decodeError) => {
             if (result) {
               stopScanner().finally(() => {
-                onScanSuccess(result.getText());
-                onClose();
+                if (onScanSuccessRef.current) onScanSuccessRef.current(result.getText());
+                if (onCloseRef.current) onCloseRef.current();
               });
               return;
             }
@@ -163,7 +171,7 @@ export default function BarcodeScannerDialog({ open, onClose, onScanSuccess, var
       cancelled = true;
       stopScanner();
     };
-  }, [isDesktop, onClose, onScanSuccess, open]);
+  }, [isDesktop, open]);
 
   if (!open) {
     return null;

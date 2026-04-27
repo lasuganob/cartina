@@ -1,7 +1,6 @@
 import {
   Box,
   Button,
-  Chip,
   Collapse,
   Grid,
   IconButton,
@@ -9,7 +8,6 @@ import {
   Stack,
   Typography
 } from '@mui/material';
-import ShoppingCartRoundedIcon from '@mui/icons-material/ShoppingCartRounded';
 import PauseCircleRoundedIcon from '@mui/icons-material/PauseCircleRounded';
 import PlayCircleFilledWhiteRoundedIcon from '@mui/icons-material/PlayCircleFilledWhiteRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';

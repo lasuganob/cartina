@@ -12,7 +12,6 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import QrCodeScannerRoundedIcon from '@mui/icons-material/QrCodeScannerRounded';
 import InventoryRoundedIcon from '@mui/icons-material/InventoryRounded';
-import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import Alert from '@mui/material/Alert';
 import { formatCurrency } from '../../../../utils/formatCurrency';
 import { db } from '../../../../lib/db';
@@ -32,8 +31,7 @@ export default function UnplannedItemForm({
   scannerStatus,
   categories,
 }) {
-  const [step, setStep] = useState('form'); // 'form' | 'ask_inventory' | 'category' | 'scanning'
-  const [categoryId, setCategoryId] = useState('');
+  const [step, setStep] = useState('form'); // 'form' | 'ask_inventory' | 'scanning'
   const [busy, setBusy] = useState(false);
   const { showConflict } = useAppContext();
 
@@ -41,7 +39,7 @@ export default function UnplannedItemForm({
 
   const handleClose = () => {
     setShowUnplannedForm(false);
-    setUnplannedDraft({ item_name: '', quantity: 1, actual_price: '', barcode: '' });
+    setUnplannedDraft({ item_name: '', quantity: 1, actual_price: '', barcode: '', category_id: '' });
     setStep('form');
   };
 
@@ -84,12 +82,12 @@ export default function UnplannedItemForm({
         inventoryItemId = crypto.randomUUID();
       }
 
-      const selectedCategory = categories.find(c => c.id === categoryId);
+      const selectedCategory = categories.find(c => String(c.id) === String(unplannedDraft.category_id));
       const newItem = {
         id: inventoryItemId,
         name: unplannedDraft.item_name.trim(),
         barcode: unplannedDraft.barcode.trim(),
-        category_id: categoryId,
+        category_id: unplannedDraft.category_id,
         usual_price: Number(unplannedDraft.actual_price || 0),
         created_at: new Date().toISOString(),
       };
@@ -199,6 +197,13 @@ export default function UnplannedItemForm({
                 onChange={(e) => updateDraft({ item_name: e.target.value })}
               />
 
+              {/* Category */}
+              <CategorySelector
+                value={unplannedDraft.category_id || ''}
+                onChange={(e) => updateDraft({ category_id: e.target.value })}
+                categories={categories}
+              />
+
               <Stack direction="row" alignItems="center" justifyContent="space-between">
                 <QuantitySelector
                   value={unplannedDraft.quantity}
@@ -250,7 +255,7 @@ export default function UnplannedItemForm({
                 size="large"
                 startIcon={<AddRoundedIcon />}
                 onClick={onAddClick}
-                disabled={busy || !unplannedDraft.item_name.trim() || !unplannedDraft.actual_price}
+                disabled={busy || !unplannedDraft.item_name.trim() || !unplannedDraft.actual_price || !unplannedDraft.category_id}
                 sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
               >
                 Add Item
@@ -316,10 +321,11 @@ export default function UnplannedItemForm({
                 variant="contained"
                 color="primary"
                 size="large"
-                onClick={() => setStep('category')}
+                onClick={handleSaveToInventory}
+                disabled={busy}
                 sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
               >
-                Yes, Save to Inventory
+                {busy ? 'Saving...' : 'Yes, Save to Inventory'}
               </Button>
               <Button
                 fullWidth
@@ -331,51 +337,6 @@ export default function UnplannedItemForm({
                 sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
               >
                 No, Just Add to Checklist
-              </Button>
-            </Stack>
-          </Stack>
-        )}
-
-        {step === 'category' && (
-          <Stack spacing={3} py={2}>
-            <Stack spacing={1}>
-              <Typography variant="subtitle1" fontWeight={700}>
-                Select Category
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Which category does "{unplannedDraft.item_name}" belong to?
-              </Typography>
-            </Stack>
-
-            <CategorySelector
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              categories={categories}
-            />
-
-            <Stack spacing={1.5}>
-              <Button
-                fullWidth
-                variant="contained"
-                color="primary"
-                size="large"
-                startIcon={<ArrowForwardRoundedIcon />}
-                onClick={handleSaveToInventory}
-                disabled={busy || !categoryId}
-                sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
-              >
-                {busy ? 'Saving...' : 'Save & Add Item'}
-              </Button>
-              <Button
-                fullWidth
-                variant="outlined"
-                color="inherit"
-                size="large"
-                onClick={() => setStep('ask_inventory')}
-                disabled={busy}
-                sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
-              >
-                Back
               </Button>
             </Stack>
           </Stack>
