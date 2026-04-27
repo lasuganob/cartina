@@ -63,18 +63,6 @@ const GET_ROUTES = {
       categories: getCategories_(),
     };
   },
-  "/trips/next-id": function () {
-    return {
-      success: true,
-      next_id: getNextTripId_(),
-    };
-  },
-  "/trip-checklist/next-ids": function (e) {
-    return {
-      success: true,
-      ids: getNextTripChecklistIds_(e),
-    };
-  },
   "/stores": function () {
     return {
       success: true,
@@ -85,24 +73,6 @@ const GET_ROUTES = {
     return {
       success: true,
       items: getCategories_(),
-    };
-  },
-  "/categories/next-id": function () {
-    return {
-      success: true,
-      next_id: getNextCategoryId_(),
-    };
-  },
-  "/stores/next-id": function () {
-    return {
-      success: true,
-      next_id: getNextStoreId_(),
-    };
-  },
-  "/inventory-items/next-id": function () {
-    return {
-      success: true,
-      next_id: getNextInventoryItemId_(),
     };
   },
   "/inventory-items": function () {
@@ -121,9 +91,13 @@ const POST_ROUTES = {
     };
   },
   "/trips/update": function (_, payload) {
+    var result = updateTrip_(payload);
+    if (result && result.conflict) {
+      return result;
+    }
     return {
       success: true,
-      item: updateTrip_(payload),
+      item: result,
     };
   },
   "/trip-checklist/replace": function (_, payload) {
@@ -145,15 +119,23 @@ const POST_ROUTES = {
     };
   },
   "/inventory-items/update": function (_, payload) {
+    var result = updateInventoryItem_(payload);
+    if (result && result.conflict) {
+      return result;
+    }
     return {
       success: true,
-      item: updateInventoryItem_(payload),
+      item: result,
     };
   },
   "/inventory-items/delete": function (_, payload) {
+    var result = deleteInventoryItem_(payload);
+    if (result && result.conflict) {
+      return result;
+    }
     return {
       success: true,
-      id: deleteInventoryItem_(payload),
+      id: result,
     };
   },
   "/stores": function (_, payload) {
@@ -163,15 +145,23 @@ const POST_ROUTES = {
     };
   },
   "/stores/update": function (_, payload) {
+    var result = updateStore_(payload);
+    if (result && result.conflict) {
+      return result;
+    }
     return {
       success: true,
-      item: updateStore_(payload),
+      item: result,
     };
   },
   "/stores/delete": function (_, payload) {
+    var result = deleteStore_(payload);
+    if (result && result.conflict) {
+      return result;
+    }
     return {
       success: true,
-      id: deleteStore_(payload),
+      id: result,
     };
   },
   "/categories": function (_, payload) {
@@ -181,15 +171,23 @@ const POST_ROUTES = {
     };
   },
   "/categories/update": function (_, payload) {
+    var result = updateCategory_(payload);
+    if (result && result.conflict) {
+      return result;
+    }
     return {
       success: true,
-      item: updateCategory_(payload),
+      item: result,
     };
   },
   "/categories/delete": function (_, payload) {
+    var result = deleteCategory_(payload);
+    if (result && result.conflict) {
+      return result;
+    }
     return {
       success: true,
-      id: deleteCategory_(payload),
+      id: result,
     };
   },
 };
@@ -206,50 +204,13 @@ function getTrips_() {
   return getRows_(SHEET_NAMES.trips, TRIP_HEADERS);
 }
 
-function getNextTripId_() {
-  return getNextSheetId_(SHEET_NAMES.trips, TRIP_HEADERS);
-}
-
-function getNextTripChecklistIds_(e) {
-  const requestedCount = Number((e && e.parameter && e.parameter.count) || 0);
-  const count = Math.max(0, Math.floor(requestedCount));
-
-  if (count === 0) {
-    return [];
-  }
-
-  const sheet = getOrCreateSheet_(SHEET_NAMES.tripChecklist, TRIP_CHECKLIST_HEADERS);
-  const values = getSheetValues_(sheet);
-  var nextId = getNextNumericId_(values, TRIP_CHECKLIST_HEADERS);
-  var ids = [];
-
-  for (var index = 0; index < count; index += 1) {
-    ids.push(nextId);
-    nextId += 1;
-  }
-
-  return ids;
-}
-
-function getNextStoreId_() {
-  return getNextSheetId_(SHEET_NAMES.stores, STORE_HEADERS);
-}
-
-function getNextCategoryId_() {
-  return getNextSheetId_(SHEET_NAMES.categories, CATEGORY_HEADERS);
-}
-
-function getNextInventoryItemId_() {
-  return getNextSheetId_(SHEET_NAMES.inventoryItems, INVENTORY_HEADERS);
-}
-
 function createTrip_(payload) {
-  const sheet = getOrCreateSheet_(SHEET_NAMES.trips, TRIP_HEADERS);
-  const trip = buildTripRecord_(payload, {
-    id: resolveRowId_(sheet, TRIP_HEADERS, payload.id),
-  });
-  appendRecord_(sheet, TRIP_HEADERS, trip);
-  return trip;
+  return createSheetRecordIfMissing_(
+    SHEET_NAMES.trips,
+    TRIP_HEADERS,
+    payload,
+    buildTripRecord_,
+  );
 }
 
 function updateTrip_(payload) {
@@ -278,12 +239,14 @@ function replaceTripChecklist_(payload) {
   var tripsSheet = getOrCreateSheet_(SHEET_NAMES.trips, TRIP_HEADERS);
   var tripsValues = getSheetValues_(tripsSheet);
   var tripMatch = findRowById_(tripsValues, payload.trip_id);
-  
-  if (tripMatch) {
-    var tripRecord = mapRowToObject_(tripsValues[0], tripMatch.row);
-    if (payload.base_updated_at && String(tripRecord.updated_at) !== String(payload.base_updated_at)) {
-      return { success: false, conflict: true, remote_trip: tripRecord };
-    }
+
+  if (!tripMatch) {
+    throw new Error("Trip not found for checklist sync.");
+  }
+
+  var tripRecord = mapRowToObject_(tripsValues[0], tripMatch.row);
+  if (payload.base_updated_at && String(tripRecord.updated_at) !== String(payload.base_updated_at)) {
+    return { success: false, conflict: true, remote_trip: tripRecord };
   }
 
   var items = Array.isArray(payload.items) ? payload.items : [];
@@ -292,7 +255,6 @@ function replaceTripChecklist_(payload) {
   var values = getSheetValues_(sheet);
   headers = values[0];
   var tripIdIndex = headers.indexOf("trip_id");
-  var nextId = getNextNumericId_(values, headers);
   var preservedRows = values.slice(1).filter(function (row) {
     return String(row[tripIdIndex]) !== String(payload.trip_id);
   });
@@ -301,16 +263,12 @@ function replaceTripChecklist_(payload) {
     rewriteSheetBody_(sheet, headers, preservedRows);
     return {
       items: [],
-      trip: tripMatch ? buildTripRecord_({}, tripRecord) : null,
+      trip: buildTripRecord_({}, tripRecord),
     };
   }
 
   var normalizedItems = items.map(function (item, index) {
-    var resolvedId = resolveSequentialId_(item.id, function () {
-      var generatedId = nextId;
-      nextId += 1;
-      return generatedId;
-    });
+    var resolvedId = resolveSequentialId_(item.id, createUuidFallback_);
 
     return buildTripChecklistItem_(item, {
       id: resolvedId,
@@ -325,13 +283,10 @@ function replaceTripChecklist_(payload) {
   rewriteSheetBody_(sheet, headers, preservedRows.concat(rows));
 
   // Update trip's updated_at
-  var updatedTrip = null;
-  if (tripMatch) {
-    updatedTrip = buildTripRecord_({}, tripRecord);
-    tripsSheet
-      .getRange(tripMatch.rowIndex + 1, 1, 1, TRIP_HEADERS.length)
-      .setValues([toOrderedRow_(TRIP_HEADERS, updatedTrip)]);
-  }
+  var updatedTrip = buildTripRecord_({}, tripRecord);
+  tripsSheet
+    .getRange(tripMatch.rowIndex + 1, 1, 1, TRIP_HEADERS.length)
+    .setValues([toOrderedRow_(TRIP_HEADERS, updatedTrip)]);
 
   return {
     items: normalizedItems,
@@ -344,12 +299,12 @@ function getInventoryItems_() {
 }
 
 function createInventoryItem_(payload) {
-  const sheet = getOrCreateSheet_(SHEET_NAMES.inventoryItems, INVENTORY_HEADERS);
-  const item = buildInventoryItemRecord_(payload, {
-    id: resolveRowId_(sheet, INVENTORY_HEADERS, payload.id),
-  });
-  appendRecord_(sheet, INVENTORY_HEADERS, item);
-  return item;
+  return createSheetRecordIfMissing_(
+    SHEET_NAMES.inventoryItems,
+    INVENTORY_HEADERS,
+    payload,
+    buildInventoryItemRecord_,
+  );
 }
 
 function updateInventoryItem_(payload) {
@@ -388,15 +343,12 @@ function getCategories_() {
 }
 
 function createStore_(payload) {
-  const sheet = getOrCreateSheet_(SHEET_NAMES.stores, STORE_HEADERS);
-  const item = {
-    id: resolveRowId_(sheet, STORE_HEADERS, payload.id),
-    name: payload.name || "",
-    logo_path: payload.logo_path || "",
-    updated_at: new Date().toISOString(),
-  };
-  appendRecord_(sheet, STORE_HEADERS, item);
-  return item;
+  return createSheetRecordIfMissing_(
+    SHEET_NAMES.stores,
+    STORE_HEADERS,
+    payload,
+    buildStoreRecord_,
+  );
 }
 
 function updateStore_(payload) {
@@ -408,14 +360,12 @@ function deleteStore_(payload) {
 }
 
 function createCategory_(payload) {
-  const sheet = getOrCreateSheet_(SHEET_NAMES.categories, CATEGORY_HEADERS);
-  const item = {
-    id: resolveRowId_(sheet, CATEGORY_HEADERS, payload.id),
-    name: payload.name || "",
-    updated_at: new Date().toISOString(),
-  };
-  appendRecord_(sheet, CATEGORY_HEADERS, item);
-  return item;
+  return createSheetRecordIfMissing_(
+    SHEET_NAMES.categories,
+    CATEGORY_HEADERS,
+    payload,
+    buildCategoryRecord_,
+  );
 }
 
 function updateCategory_(payload) {
@@ -495,14 +445,31 @@ function rewriteSheetBody_(sheet, headers, rows) {
   }
 }
 
+function createUuidFallback_() {
+  return Utilities.getUuid();
+}
+
+function createSheetRecordIfMissing_(sheetName, headers, payload, buildRecord) {
+  var sheet = getOrCreateSheet_(sheetName, headers);
+  var values = getSheetValues_(sheet);
+  var existingMatch = payload.id ? findRowById_(values, payload.id) : null;
+
+  if (existingMatch) {
+    return mapRowToObject_(values[0] || headers, existingMatch.row);
+  }
+
+  var record = buildRecord(payload, { id: resolveRowId_(sheet, headers, payload.id) });
+  appendRecord_(sheet, headers, record);
+  return record;
+}
+
 function resolveRowId_(sheet, headers, candidateId) {
   var normalizedId = normalizeRowId_(candidateId);
   if (normalizedId !== "") {
     return normalizedId;
   }
 
-  var values = getSheetValues_(sheet);
-  return getNextNumericId_(values, values[0] || headers);
+  return createUuidFallback_();
 }
 
 function normalizeRowId_(value) {
@@ -511,45 +478,7 @@ function normalizeRowId_(value) {
   }
 
   var strValue = String(value).trim();
-  // If not a number, consider it invalid so server generates a numeric one
-  if (strValue === "" || isNaN(Number(strValue))) {
-    return "";
-  }
-
-  return strValue;
-}
-
-function getNextNumericId_(values, headers) {
-  var idIndex = headers.indexOf("id");
-
-  if (idIndex === -1) {
-    throw new Error('Sheet is missing required "id" column.');
-  }
-
-  var maxId = 0;
-
-  for (var rowIndex = 1; rowIndex < values.length; rowIndex += 1) {
-    var numericId = Number(values[rowIndex][idIndex]);
-    if (Number.isFinite(numericId)) {
-      maxId = Math.max(maxId, numericId);
-    }
-  }
-
-  return maxId + 1;
-}
-
-function normalizeNumericId_(value) {
-  if (value === "" || value == null) {
-    return "";
-  }
-
-  var numericId = Number(value);
-
-  if (!Number.isFinite(numericId) || numericId <= 0) {
-    return "";
-  }
-
-  return Math.floor(numericId);
+  return strValue === "" ? "" : strValue;
 }
 
 function handleRequest_(routes, e, payload) {
@@ -608,12 +537,6 @@ function appendRecord_(sheet, headers, record) {
   var values = getSheetValues_(sheet);
   var sheetHeaders = values[0] && values[0].length ? values[0] : headers;
   sheet.appendRow(toOrderedRow_(sheetHeaders, record));
-}
-
-function getNextSheetId_(sheetName, headers) {
-  var sheet = getOrCreateSheet_(sheetName, headers);
-  var values = getSheetValues_(sheet);
-  return getNextNumericId_(values, values[0] || headers);
 }
 
 function resolveSequentialId_(candidateId, createId) {
@@ -725,6 +648,27 @@ function buildInventoryItemRecord_(payload, existingItem) {
         ? payload.has_no_barcode === true || payload.has_no_barcode === "true"
         : item.has_no_barcode === true || item.has_no_barcode === "true",
     created_at: payload.created_at || item.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function buildStoreRecord_(payload, existingItem) {
+  var item = existingItem || {};
+
+  return {
+    id: payload.id != null ? payload.id : item.id,
+    name: payload.name != null ? payload.name : item.name || "",
+    logo_path: payload.logo_path != null ? payload.logo_path : item.logo_path || "",
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function buildCategoryRecord_(payload, existingItem) {
+  var item = existingItem || {};
+
+  return {
+    id: payload.id != null ? payload.id : item.id,
+    name: payload.name != null ? payload.name : item.name || "",
     updated_at: new Date().toISOString(),
   };
 }

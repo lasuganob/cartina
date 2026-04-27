@@ -19,6 +19,7 @@ export function AppProvider({ children }) {
     isSyncing: false,
     lastSynced: null,
     pendingCount: 0,
+    failedCount: 0,
     syncError: null,
     syncNow: () => Promise.resolve(),
   });

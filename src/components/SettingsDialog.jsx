@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Button,
   Dialog,
@@ -22,6 +23,7 @@ import CloudOffRoundedIcon from '@mui/icons-material/CloudOffRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import { db } from '../lib/db';
+import ConfirmDialog from './ConfirmDialog';
 import { useTheme } from '@emotion/react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
@@ -40,31 +42,35 @@ export default function SettingsDialog({ open, onClose }) {
   const navigate = useNavigate();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { syncState, showSnackbar } = useAppContext();
-  const { isOnline, isSyncing, lastSynced, pendingCount, syncError, syncNow } = syncState;
+  const { isOnline, isSyncing, lastSynced, pendingCount, failedCount, syncError, syncNow } = syncState;
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   const handleNavigateToManager = (type) => {
     onClose();
     navigate(`/managers?type=${type}`);
   };
 
-  const handleClearData = async () => {
-    if (window.confirm('Are you sure you want to clear all local data? This cannot be undone.')) {
-      try {
-        onClose();
+  const handleClearData = () => {
+    setClearConfirmOpen(true);
+  };
 
-        await db.transaction('rw', db.tables, async () => {
-          await Promise.all(db.tables.map(table => table.clear()));
-        });
+  const handleConfirmClearData = async () => {
+    try {
+      setClearConfirmOpen(false);
+      onClose();
 
-        window.localStorage.clear();
-        // Set a flag so the next sync knows to perform a full "Remote Wins" pull
-        window.localStorage.setItem('cartina:needs_full_pull', 'true');
-        
-        navigate('/');
-      } catch (error) {
-        console.error('Failed to clear data:', error);
-        alert('Failed to clear data: ' + error.message);
-      }
+      await db.transaction('rw', db.tables, async () => {
+        await Promise.all(db.tables.map(table => table.clear()));
+      });
+
+      window.localStorage.clear();
+      // Set a flag so the next sync knows to perform a full "Remote Wins" pull
+      window.localStorage.setItem('cartina:needs_full_pull', 'true');
+      
+      navigate('/');
+    } catch (error) {
+      console.error('Failed to clear data:', error);
+      alert('Failed to clear data: ' + error.message);
     }
   };
 
@@ -132,14 +138,26 @@ export default function SettingsDialog({ open, onClose }) {
                       color={isOnline ? 'success' : 'default'}
                       variant="outlined"
                     />
+                    {failedCount > 0 ? (
+                      <Chip size="small" label={`${failedCount} failed`} color="error" variant="filled" />
+                    ) : null}
                     {pendingCount > 0 ? (
-                      <Chip size="small" label={`${pendingCount} queued`} color="warning" variant="outlined" />
+                      <Chip
+                        size="small"
+                        label={`${pendingCount} unsynced`}
+                        color={failedCount > 0 ? 'error' : 'warning'}
+                        variant="outlined"
+                      />
                     ) : (
                       <Chip size="small" label="Auto sync on" color="default" variant="outlined" />
                     )}
                   </Stack>
                   <Typography variant="caption" color="text.secondary">
-                    {lastSynced ? `Last synced ${formatRelativeTime(lastSynced)}` : 'Sync runs automatically when possible.'}
+                    {failedCount > 0
+                      ? 'Some changes could not sync. The app will keep retrying when possible.'
+                      : lastSynced
+                        ? `Last synced ${formatRelativeTime(lastSynced)}`
+                        : 'Sync runs automatically when possible.'}
                   </Typography>
                 </Stack>
 
@@ -168,6 +186,12 @@ export default function SettingsDialog({ open, onClose }) {
               {!isOnline && (
                 <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
                   Offline changes stay queued until connection returns.
+                </Typography>
+              )}
+
+              {failedCount > 0 && isOnline && (
+                <Typography variant="caption" color="error.main" sx={{ display: 'block', mt: 1 }}>
+                  Failed syncs are kept locally and retried automatically. You can also run sync again manually.
                 </Typography>
               )}
             </Box>
@@ -261,6 +285,15 @@ export default function SettingsDialog({ open, onClose }) {
           Close
         </Button>
       </DialogActions>
+      <ConfirmDialog
+        open={clearConfirmOpen}
+        onClose={() => setClearConfirmOpen(false)}
+        onConfirm={handleConfirmClearData}
+        title="Clear All Local Data?"
+        message={<>Are you sure you want to clear all local data? <strong>This will clear all queued changes</strong> and cannot be undone.</>}
+        confirmLabel="Clear Data"
+        busyLabel="Clearing…"
+      />
     </Dialog>
   );
 }

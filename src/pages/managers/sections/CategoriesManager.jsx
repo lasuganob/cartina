@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import ConfirmDialog from '../../../components/ConfirmDialog';
 import {
   Box,
   Button,
@@ -20,8 +21,8 @@ import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../lib/db';
+import { createClientId } from '../../../lib/ids';
 import { useAppContext } from '../../../context/AppContext';
-import { apiClient } from '../../../api/client';
 import { syncMutationNowOrEnqueue } from '../../../hooks/useOfflineSync';
 
 const PAGE_SIZE = 5;
@@ -35,6 +36,8 @@ export default function CategoriesManager() {
   const [name, setName] = useState('');
   const [page, setPage] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [idToDelete, setIdToDelete] = useState(null);
 
   const paginatedCategories = useMemo(() => {
     const startIndex = (page - 1) * PAGE_SIZE;
@@ -61,20 +64,8 @@ export default function CategoriesManager() {
 
     setSaving(true);
     try {
-      let categoryId = editingCategory?.id;
-
-      if (!editingCategory) {
-        try {
-          const response = await apiClient.getNextCategoryId();
-          categoryId = response.next_id;
-        } catch (idError) {
-          console.warn('Failed to fetch numeric ID, using temporary UUID:', idError);
-          categoryId = crypto.randomUUID();
-        }
-      }
-
       const categoryData = {
-        id: categoryId,
+        id: editingCategory?.id || createClientId(),
         name: name.trim(),
         updated_at: editingCategory?.updated_at || ''
       };
@@ -91,6 +82,7 @@ export default function CategoriesManager() {
           payload: categoryData
         },
         {
+          preferBackground: true,
           onConflict: async (entityName, localData, remoteData) =>
             new Promise((resolve) => {
               showConflict(entityName, localData, remoteData, resolve);
@@ -108,34 +100,42 @@ export default function CategoriesManager() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this category?')) {
-      try {
-        const existingCategory = categories.find((category) => String(category.id) === String(id));
-        await db.categories.delete(id);
-        const result = await syncMutationNowOrEnqueue(
-          {
-            entity: 'categories',
-            action: 'delete',
-            payload: { id, updated_at: existingCategory?.updated_at || '' }
-          },
-          {
-            onConflict: async (entityName, localData, remoteData) =>
-              new Promise((resolve) => {
-                showConflict(entityName, localData, remoteData, resolve);
-              })
-          }
-        );
+  const handleDelete = (id) => {
+    setIdToDelete(id);
+    setDeleteConfirmOpen(true);
+  };
 
-        showSnackbar(
-          result.status === 'synced'
-            ? 'Category deleted and synced.'
-            : 'Category deleted locally and queued for sync.',
-          'success'
-        );
-      } catch (error) {
-        showSnackbar('Error deleting category', 'error');
-      }
+  const handleConfirmDelete = async () => {
+    if (!idToDelete) return;
+    try {
+      const existingCategory = categories.find((category) => String(category.id) === String(idToDelete));
+      await db.categories.delete(idToDelete);
+      const result = await syncMutationNowOrEnqueue(
+        {
+          entity: 'categories',
+          action: 'delete',
+          payload: { id: idToDelete, updated_at: existingCategory?.updated_at || '' }
+        },
+        {
+          preferBackground: true,
+          onConflict: async (entityName, localData, remoteData) =>
+            new Promise((resolve) => {
+              showConflict(entityName, localData, remoteData, resolve);
+            })
+        }
+      );
+
+      showSnackbar(
+        result.status === 'synced'
+          ? 'Category deleted and synced.'
+          : 'Category deleted locally and queued for sync.',
+        'success'
+      );
+    } catch (error) {
+      showSnackbar('Error deleting category', 'error');
+    } finally {
+      setDeleteConfirmOpen(false);
+      setIdToDelete(null);
     }
   };
 
@@ -255,6 +255,13 @@ export default function CategoriesManager() {
         </Stack>
         <Box sx={{ height: 20 }} />
       </SwipeableDrawer>
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onClose={() => { setDeleteConfirmOpen(false); setIdToDelete(null); }}
+        onConfirm={handleConfirmDelete}
+        title="Delete Category?"
+        message="Are you sure you want to delete this category? This action cannot be undone."
+      />
     </Card>
   );
 }

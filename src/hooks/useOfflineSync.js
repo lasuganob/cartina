@@ -73,7 +73,7 @@ async function reconcileCreatedInventoryItem(localItem, syncedItem) {
 }
 
 async function reconcileUpdatedRecord(entity, syncedItem) {
-  if (!syncedItem) {
+  if (!syncedItem?.id) {
     return;
   }
 
@@ -320,7 +320,7 @@ async function reconcileCreatedCategory(localItem, syncedItem) {
 }
 
 async function applyRemoteRecord(entity, remoteData) {
-  if (!remoteData) {
+  if (!remoteData?.id) {
     return;
   }
 
@@ -384,7 +384,7 @@ async function executeRemoteMutation(item) {
   if (item.entity === 'trips' && item.action === 'update') {
     const response = await apiClient.updateTrip(item.payload);
     if (!response?.conflict) {
-      await reconcileUpdatedRecord('trips', response.item);
+      await reconcileUpdatedRecord('trips', { ...item.payload, ...(response.item || {}) });
     }
     return response;
   }
@@ -394,7 +394,7 @@ async function executeRemoteMutation(item) {
     if (response && !response.conflict) {
       await reconcileReplacedChecklist(item.payload.trip_id, item.payload.items, response.items);
       if (response.trip) {
-        await reconcileUpdatedRecord('trips', response.trip);
+        await reconcileUpdatedRecord('trips', { id: item.payload.trip_id, ...response.trip });
       }
     }
     return response;
@@ -411,7 +411,7 @@ async function executeRemoteMutation(item) {
   if (item.entity === 'inventoryItems' && item.action === 'update') {
     const response = await apiClient.updateInventoryItem(item.payload);
     if (!response?.conflict) {
-      await reconcileUpdatedRecord('inventoryItems', response.item);
+      await reconcileUpdatedRecord('inventoryItems', { ...item.payload, ...(response.item || {}) });
     }
     return response;
   }
@@ -435,7 +435,7 @@ async function executeRemoteMutation(item) {
   if (item.entity === 'stores' && item.action === 'update') {
     const response = await apiClient.updateStore(item.payload);
     if (!response?.conflict) {
-      await reconcileUpdatedRecord('stores', response.item);
+      await reconcileUpdatedRecord('stores', { ...item.payload, ...(response.item || {}) });
     }
     return response;
   }
@@ -459,7 +459,7 @@ async function executeRemoteMutation(item) {
   if (item.entity === 'categories' && item.action === 'update') {
     const response = await apiClient.updateCategory(item.payload);
     if (!response?.conflict) {
-      await reconcileUpdatedRecord('categories', response.item);
+      await reconcileUpdatedRecord('categories', { ...item.payload, ...(response.item || {}) });
     }
     return response;
   }
@@ -479,6 +479,7 @@ function isConnectivityError(error) {
   const message = String(error?.message || error || '').toLowerCase();
   return (
     message.includes('could not reach google apps script') ||
+    message.includes('request timed out') ||
     message.includes('failed to fetch') ||
     message.includes('networkerror') ||
     message.includes('network request failed')
@@ -514,7 +515,15 @@ async function resolveConflictResponse(item, response, onConflict) {
 }
 
 export async function syncMutationNowOrEnqueue(item, options = {}) {
-  const { onConflict } = options;
+  const { onConflict, preferBackground = false } = options;
+
+  if (preferBackground) {
+    await queueMutation(item.entity, item.action, item.payload);
+    if (navigator.onLine) {
+      void processQueue({ onConflict });
+    }
+    return { status: 'queued' };
+  }
 
   if (!navigator.onLine) {
     await queueMutation(item.entity, item.action, item.payload);
@@ -541,7 +550,16 @@ export async function processQueue(options = {}) {
   }
 
   inFlightQueueSync = (async () => {
-    const pendingItems = await db.syncQueue.where('status').anyOf(['pending', 'failed']).toArray();
+    const pendingItems = (await db.syncQueue.where('status').anyOf(['pending', 'failed']).toArray()).sort(
+      (left, right) => {
+        const leftTime = new Date(left.createdAt || 0).getTime();
+        const rightTime = new Date(right.createdAt || 0).getTime();
+        if (leftTime !== rightTime) {
+          return leftTime - rightTime;
+        }
+        return Number(left.id || 0) - Number(right.id || 0);
+      }
+    );
 
     for (const item of pendingItems) {
       try {
@@ -638,7 +656,8 @@ async function pullAndMerge() {
 
         for (const [tripId, items] of Object.entries(remoteGroups)) {
           if (!pendingTripChecklistIds.has(String(tripId))) {
-            await db.tripChecklist.where('trip_id').equals(Number(tripId)).delete();
+            const normalizedTripId = /^-?\d+$/.test(String(tripId)) ? Number(tripId) : String(tripId);
+            await db.tripChecklist.where('trip_id').equals(normalizedTripId).delete();
             await db.tripChecklist.bulkPut(items);
           }
         }
@@ -687,6 +706,10 @@ export async function getPendingCount() {
   return db.syncQueue.where('status').anyOf(['pending', 'failed']).count();
 }
 
+export async function getFailedCount() {
+  return db.syncQueue.where('status').equals('failed').count();
+}
+
 const LAST_SYNCED_KEY = 'cartina:lastSynced';
 
 export function useOfflineSync() {
@@ -695,6 +718,7 @@ export function useOfflineSync() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState(() => localStorage.getItem(LAST_SYNCED_KEY));
   const [pendingCount, setPendingCount] = useState(0);
+  const [failedCount, setFailedCount] = useState(0);
   const [syncError, setSyncError] = useState(null);
 
   // Keep pendingCount live by polling IndexedDB
@@ -702,8 +726,11 @@ export function useOfflineSync() {
     let cancelled = false;
 
     async function refresh() {
-      const count = await getPendingCount();
-      if (!cancelled) setPendingCount(count);
+      const [pending, failed] = await Promise.all([getPendingCount(), getFailedCount()]);
+      if (!cancelled) {
+        setPendingCount(pending);
+        setFailedCount(failed);
+      }
     }
 
     refresh();
@@ -745,9 +772,9 @@ export function useOfflineSync() {
       const ts = new Date().toISOString();
       localStorage.setItem(LAST_SYNCED_KEY, ts);
       setLastSynced(ts);
-      // Refresh pending count after sync
-      const count = await getPendingCount();
-      setPendingCount(count);
+      const [pending, failed] = await Promise.all([getPendingCount(), getFailedCount()]);
+      setPendingCount(pending);
+      setFailedCount(failed);
     } catch (error) {
       setSyncError(error.message || 'Sync failed');
       if (!suppressErrors) {
@@ -780,5 +807,5 @@ export function useOfflineSync() {
     };
   }, [syncNow]);
 
-  return { isOnline, isSyncing, lastSynced, pendingCount, syncError, syncNow };
+  return { isOnline, isSyncing, lastSynced, pendingCount, failedCount, syncError, syncNow };
 }

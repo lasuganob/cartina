@@ -382,17 +382,22 @@ export default function TripShoppingPage() {
       isCompletingRef.current = true;
       skipPersistOnExitRef.current = true;
       hasPersistedOnExitRef.current = true;
-      await replaceTripChecklist(trip.id, buildPersistedItems(draftItems, trip.id), {
+      const checklistResult = await replaceTripChecklist(trip.id, buildPersistedItems(draftItems, trip.id), {
         sync: true,
-        notify: true
+        notify: true,
+        skipConflictBase: true
       });
       window.localStorage.removeItem(getShoppingDraftKey(trip.id));
       window.localStorage.removeItem(getShoppingSessionKey(trip.id));
+      const tripAfterChecklist = checklistResult?.trip || trip;
       await updateTrip(trip.id, {
         status: 'completed',
-        started_at: sessionState.startedAt || trip.started_at || new Date().toISOString(),
+        started_at: sessionState.startedAt || tripAfterChecklist?.started_at || trip.started_at || new Date().toISOString(),
         elapsed_ms: elapsedMs,
-        completed_at: new Date().toISOString()
+        completed_at: new Date().toISOString(),
+        updated_at: tripAfterChecklist?.updated_at || trip.updated_at || ''
+      }, {
+        skipConflictBase: true
       });
       navigate(`/trips/${trip.id}`);
     } catch (error) {
@@ -418,6 +423,8 @@ export default function TripShoppingPage() {
         started_at: sessionState.startedAt || trip.started_at || '',
         elapsed_ms: elapsedMs,
         completed_at: ''
+      }, {
+        skipConflictBase: true
       });
       navigate(`/trips/${trip.id}`);
     } catch (error) {

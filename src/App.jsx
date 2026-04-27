@@ -16,7 +16,7 @@ export default function App() {
   useEffect(() => {
     setSyncState(sync);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sync.isOnline, sync.isSyncing, sync.lastSynced, sync.pendingCount, sync.syncError]);
+  }, [sync.isOnline, sync.isSyncing, sync.lastSynced, sync.pendingCount, sync.failedCount, sync.syncError]);
 
   return (
     <ThemeProvider theme={theme}>

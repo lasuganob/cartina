@@ -13,6 +13,7 @@ import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import BarcodeScannerDialog from '../../../components/BarcodeScannerDialog';
 import CategorySelector from '../../../components/CategorySelector';
+import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 
 export default function InventoryEditor({
   editingItem,
@@ -26,6 +27,8 @@ export default function InventoryEditor({
   onChange,
   onSave,
   onScanSuccess,
+  isMobile,
+  handleDelete,
 }) {
   return (
     <SwipeableDrawer
@@ -156,8 +159,22 @@ export default function InventoryEditor({
               disabled={busy}
               sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
             >
-              {busy ? 'Processing...' : editingItem ? 'Save Changes' : 'Add Item'}
+              {busy ? 'Saving...' : editingItem ? 'Save Changes' : 'Add Item'}
             </Button>
+            { isMobile && editingItem && (
+              <Button
+                fullWidth
+                variant="outlined"
+                color="error"
+                size="large"
+                startIcon={<DeleteRoundedIcon />}
+                onClick={() => handleDelete(editingItem)}
+                disabled={busy}
+                sx={{ borderRadius: 1, py: 1.5, fontSize: '12px' }}
+              >
+                {busy ? 'Deleting...' : 'Delete Item'}
+              </Button>
+            )}
             <Button
               fullWidth
               variant="outlined"

@@ -1,4 +1,6 @@
 const BASE_URL = import.meta.env.VITE_GAS_BASE_URL?.trim();
+const READ_TIMEOUT_MS = 12000;
+const WRITE_TIMEOUT_MS = 4000;
 
 function buildUrl(path, params) {
   const url = new URL(BASE_URL);
@@ -21,6 +23,8 @@ async function request(path, options = {}) {
   }
 
   let response;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), options.timeoutMs || READ_TIMEOUT_MS);
 
   try {
     response = await fetch(buildUrl(path, options.params), {
@@ -29,12 +33,18 @@ async function request(path, options = {}) {
         ...(options.body ? { 'Content-Type': 'text/plain;charset=utf-8' } : {}),
         ...(options.headers || {})
       },
-      body: options.body ? JSON.stringify(options.body) : undefined
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: controller.signal
     });
   } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('Google Apps Script request timed out. The connection may be unstable.');
+    }
     throw new Error(
       'Could not reach Google Apps Script. Check deployment access, browser CORS/network, and the VITE_GAS_BASE_URL value.'
     );
+  } finally {
+    window.clearTimeout(timeoutId);
   }
 
   if (!response.ok) {
@@ -63,41 +73,23 @@ async function request(path, options = {}) {
 }
 
 export const apiClient = {
-  // --- READ (GET) ---
   getTrips() {
-    return request('/trips');
-  },
-  getNextTripId() {
-    return request('/trips/next-id');
-  },
-  getNextTripChecklistIds(count) {
-    return request('/trip-checklist/next-ids', {
-      params: { count }
-    });
-  },
-  getNextInventoryItemId() {
-    return request('/inventory-items/next-id');
-  },
-  getNextStoreId() {
-    return request('/stores/next-id');
-  },
-  getNextCategoryId() {
-    return request('/categories/next-id');
+    return request('/trips', { timeoutMs: READ_TIMEOUT_MS });
   },
   getInventoryItems() {
-    return request('/inventory-items');
+    return request('/inventory-items', { timeoutMs: READ_TIMEOUT_MS });
   },
   getStores() {
-    return request('/stores');
+    return request('/stores', { timeoutMs: READ_TIMEOUT_MS });
   },
   getCategories() {
-    return request('/categories');
+    return request('/categories', { timeoutMs: READ_TIMEOUT_MS });
   },
-  // --- WRITE (POST) ---
   createTrip(payload) {
     return request('/trips', {
       method: 'POST',
-      body: payload
+      body: payload,
+      timeoutMs: WRITE_TIMEOUT_MS
     });
   },
   updateTrip(payload) {
@@ -106,13 +98,15 @@ export const apiClient = {
       body: {
         ...payload,
         base_updated_at: payload.updated_at
-      }
+      },
+      timeoutMs: WRITE_TIMEOUT_MS
     });
   },
   createInventoryItem(payload) {
     return request('/inventory-items', {
       method: 'POST',
-      body: payload
+      body: payload,
+      timeoutMs: WRITE_TIMEOUT_MS
     });
   },
   updateInventoryItem(payload) {
@@ -121,7 +115,8 @@ export const apiClient = {
       body: {
         ...payload,
         base_updated_at: payload.updated_at
-      }
+      },
+      timeoutMs: WRITE_TIMEOUT_MS
     });
   },
   deleteInventoryItem(payload) {
@@ -130,7 +125,8 @@ export const apiClient = {
       body: {
         ...payload,
         base_updated_at: payload.updated_at
-      }
+      },
+      timeoutMs: WRITE_TIMEOUT_MS
     });
   },
   replaceTripChecklist(payload) {
@@ -139,14 +135,16 @@ export const apiClient = {
       body: {
         ...payload,
         base_updated_at: payload.base_updated_at
-      }
+      },
+      timeoutMs: WRITE_TIMEOUT_MS
     });
   },
   // Stores
   createStore(payload) {
     return request('/stores', {
       method: 'POST',
-      body: payload
+      body: payload,
+      timeoutMs: WRITE_TIMEOUT_MS
     });
   },
   updateStore(payload) {
@@ -155,7 +153,8 @@ export const apiClient = {
       body: {
         ...payload,
         base_updated_at: payload.updated_at
-      }
+      },
+      timeoutMs: WRITE_TIMEOUT_MS
     });
   },
   deleteStore(payload) {
@@ -164,14 +163,16 @@ export const apiClient = {
       body: {
         ...payload,
         base_updated_at: payload.updated_at
-      }
+      },
+      timeoutMs: WRITE_TIMEOUT_MS
     });
   },
   // Categories
   createCategory(payload) {
     return request('/categories', {
       method: 'POST',
-      body: payload
+      body: payload,
+      timeoutMs: WRITE_TIMEOUT_MS
     });
   },
   updateCategory(payload) {
@@ -180,7 +181,8 @@ export const apiClient = {
       body: {
         ...payload,
         base_updated_at: payload.updated_at
-      }
+      },
+      timeoutMs: WRITE_TIMEOUT_MS
     });
   },
   deleteCategory(payload) {
@@ -189,7 +191,8 @@ export const apiClient = {
       body: {
         ...payload,
         base_updated_at: payload.updated_at
-      }
+      },
+      timeoutMs: WRITE_TIMEOUT_MS
     });
   }
 };

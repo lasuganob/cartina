@@ -20,7 +20,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import PageHeader from '../../components/PageHeader';
 import { useAppContext } from '../../context/AppContext';
 import { db } from '../../lib/db';
-import { apiClient } from '../../api/client';
+import { createClientId } from '../../lib/ids';
 import { syncMutationNowOrEnqueue } from '../../hooks/useOfflineSync';
 
 
@@ -31,6 +31,7 @@ import InventoryEditor from './components/InventoryEditor';
 import InventoryTable from './components/InventoryTable';
 import InventoryMobileCards from './components/InventoryMobileCards';
 import InventoryActionMenu from './components/InventoryActionMenu';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const initialFormValues = {
   name: '',
@@ -85,6 +86,8 @@ export default function InventoryPage() {
   const [menuItem, setMenuItem] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
   
   const { lookup } = useBarcodeLookup();
   const { showSnackbar, showConflict } = useAppContext();
@@ -204,16 +207,7 @@ export default function InventoryPage() {
 
     setBusy(true);
     try {
-      let itemId = editingItem?.id;
-      if (!itemId) {
-        try {
-          const response = await apiClient.getNextInventoryItemId();
-          itemId = response.next_id;
-        } catch (idError) {
-          console.warn('Failed to fetch numeric ID, using temporary UUID:', idError);
-          itemId = crypto.randomUUID();
-        }
-      }
+      const itemId = editingItem?.id || createClientId();
       const normalizedItem = normalizeInventoryItem(values, editingItem, itemId);
       const action = editingItem ? 'update' : 'create';
 
@@ -225,6 +219,7 @@ export default function InventoryPage() {
           payload: normalizedItem
         },
         {
+          preferBackground: true,
           onConflict: async (entityName, localData, remoteData) =>
             new Promise((resolve) => {
               showConflict(entityName, localData, remoteData, resolve);
@@ -242,29 +237,46 @@ export default function InventoryPage() {
     }
   }
 
-  async function handleDelete(item) {
+  function handleDelete(item) {
+    setItemToDelete(item);
+    setDeleteConfirmOpen(true);
     handleCloseMenu();
-    await db.inventoryItems.delete(item.id);
-    const result = await syncMutationNowOrEnqueue(
-      {
-        entity: 'inventoryItems',
-        action: 'delete',
-        payload: { id: item.id, updated_at: item.updated_at || '' }
-      },
-      {
-        onConflict: async (entityName, localData, remoteData) =>
-          new Promise((resolve) => {
-            showConflict(entityName, localData, remoteData, resolve);
-          })
-      }
-    );
+  }
 
-    showSnackbar(
-      result.status === 'synced'
-        ? 'Inventory item deleted and synced.'
-        : 'Inventory item deleted locally and queued for sync.',
-      'success'
-    );
+  async function handleConfirmDelete() {
+    if (!itemToDelete) return;
+
+    setBusy(true);
+    try {
+      await db.inventoryItems.delete(itemToDelete.id);
+      const result = await syncMutationNowOrEnqueue(
+        {
+          entity: 'inventoryItems',
+          action: 'delete',
+          payload: { id: itemToDelete.id, updated_at: itemToDelete.updated_at || '' }
+        },
+        {
+          preferBackground: true,
+          onConflict: async (entityName, localData, remoteData) =>
+            new Promise((resolve) => {
+              showConflict(entityName, localData, remoteData, resolve);
+            })
+        }
+      );
+
+      showSnackbar(
+        result.status === 'synced'
+          ? 'Inventory item deleted and synced.'
+          : 'Inventory item deleted locally and queued for sync.',
+        'success'
+      );
+      setDeleteConfirmOpen(false);
+      setItemToDelete(null);
+      setDialogOpen(false);
+      handleCloseMenu();
+    } finally {
+      setBusy(false);
+    }
   }
 
   function handleOpenMenu(event, item) {
@@ -310,6 +322,8 @@ export default function InventoryPage() {
           onChange={handleChange}
           onSave={handleSave}
           onScanSuccess={handleScanSuccess}
+          isMobile={isMobile}
+          handleDelete={handleDelete}
         />
       ) : null}
 
@@ -396,6 +410,15 @@ export default function InventoryPage() {
         onEdit={handleOpenEditDialog}
         onDelete={handleDelete}
         item={menuItem}
+      />
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Inventory Item?"
+        message={<>Are you sure you want to delete <strong>{itemToDelete?.name}</strong>? This action cannot be undone.</>}
+        busy={busy}
       />
     </>
   );

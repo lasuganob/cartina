@@ -15,7 +15,7 @@ import InventoryRoundedIcon from '@mui/icons-material/InventoryRounded';
 import Alert from '@mui/material/Alert';
 import { formatCurrency } from '../../../../utils/formatCurrency';
 import { db } from '../../../../lib/db';
-import { apiClient } from '../../../../api/client';
+import { createClientId } from '../../../../lib/ids';
 import CategorySelector from '../../../../components/CategorySelector';
 import QuantitySelector from '../../../../components/QuantitySelector';
 import BarcodeScannerDialog from '../../../../components/BarcodeScannerDialog';
@@ -73,18 +73,9 @@ export default function UnplannedItemForm({
   const handleSaveToInventory = async () => {
     setBusy(true);
     try {
-      let inventoryItemId;
-      try {
-        const response = await apiClient.getNextInventoryItemId();
-        inventoryItemId = response.next_id;
-      } catch (idError) {
-        console.warn('Failed to fetch numeric ID, using temporary UUID:', idError);
-        inventoryItemId = crypto.randomUUID();
-      }
-
       const selectedCategory = categories.find(c => String(c.id) === String(unplannedDraft.category_id));
       const newItem = {
-        id: inventoryItemId,
+        id: createClientId(),
         name: unplannedDraft.item_name.trim(),
         barcode: unplannedDraft.barcode.trim(),
         category_id: unplannedDraft.category_id,
@@ -100,6 +91,7 @@ export default function UnplannedItemForm({
           payload: newItem
         },
         {
+          preferBackground: true,
           onConflict: async (entityName, localData, remoteData) =>
             new Promise((resolve) => {
               showConflict(entityName, localData, remoteData, resolve);

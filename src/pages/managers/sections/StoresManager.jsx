@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import ConfirmDialog from '../../../components/ConfirmDialog';
 import {
   Box,
   Button,
@@ -20,8 +21,8 @@ import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../lib/db';
+import { createClientId } from '../../../lib/ids';
 import { useAppContext } from '../../../context/AppContext';
-import { apiClient } from '../../../api/client';
 import { syncMutationNowOrEnqueue } from '../../../hooks/useOfflineSync';
 
 const PAGE_SIZE = 5;
@@ -35,6 +36,8 @@ export default function StoresManager() {
   const [name, setName] = useState('');
   const [page, setPage] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [idToDelete, setIdToDelete] = useState(null);
 
   const paginatedStores = useMemo(() => {
     const startIndex = (page - 1) * PAGE_SIZE;
@@ -61,20 +64,8 @@ export default function StoresManager() {
 
     setSaving(true);
     try {
-      let storeId = editingStore?.id;
-
-      if (!editingStore) {
-        try {
-          const response = await apiClient.getNextStoreId();
-          storeId = response.next_id;
-        } catch (idError) {
-          console.warn('Failed to fetch numeric ID, using temporary UUID:', idError);
-          storeId = crypto.randomUUID();
-        }
-      }
-
       const storeData = {
-        id: storeId,
+        id: editingStore?.id || createClientId(),
         name: name.trim(),
         logo_path: editingStore?.logo_path || '',
         updated_at: editingStore?.updated_at || ''
@@ -92,6 +83,7 @@ export default function StoresManager() {
           payload: storeData
         },
         {
+          preferBackground: true,
           onConflict: async (entityName, localData, remoteData) =>
             new Promise((resolve) => {
               showConflict(entityName, localData, remoteData, resolve);
@@ -109,29 +101,37 @@ export default function StoresManager() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this store?')) {
-      try {
-        const existingStore = stores.find((store) => String(store.id) === String(id));
-        await db.stores.delete(id);
-        const result = await syncMutationNowOrEnqueue(
-          {
-            entity: 'stores',
-            action: 'delete',
-            payload: { id, updated_at: existingStore?.updated_at || '' }
-          },
-          {
-            onConflict: async (entityName, localData, remoteData) =>
-              new Promise((resolve) => {
-                showConflict(entityName, localData, remoteData, resolve);
-              })
-          }
-        );
+  const handleDelete = (id) => {
+    setIdToDelete(id);
+    setDeleteConfirmOpen(true);
+  };
 
-        showSnackbar(result.status === 'synced' ? 'Store deleted and synced.' : 'Store deleted locally and queued for sync.', 'success');
-      } catch (error) {
-        showSnackbar('Error deleting store', 'error');
-      }
+  const handleConfirmDelete = async () => {
+    if (!idToDelete) return;
+    try {
+      const existingStore = stores.find((store) => String(store.id) === String(idToDelete));
+      await db.stores.delete(idToDelete);
+      const result = await syncMutationNowOrEnqueue(
+        {
+          entity: 'stores',
+          action: 'delete',
+          payload: { id: idToDelete, updated_at: existingStore?.updated_at || '' }
+        },
+        {
+          preferBackground: true,
+          onConflict: async (entityName, localData, remoteData) =>
+            new Promise((resolve) => {
+              showConflict(entityName, localData, remoteData, resolve);
+            })
+        }
+      );
+
+      showSnackbar(result.status === 'synced' ? 'Store deleted and synced.' : 'Store deleted locally and queued for sync.', 'success');
+    } catch (error) {
+      showSnackbar('Error deleting store', 'error');
+    } finally {
+      setDeleteConfirmOpen(false);
+      setIdToDelete(null);
     }
   };
 
@@ -251,6 +251,13 @@ export default function StoresManager() {
         </Stack>
         <Box sx={{ height: 20 }} />
       </SwipeableDrawer>
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onClose={() => { setDeleteConfirmOpen(false); setIdToDelete(null); }}
+        onConfirm={handleConfirmDelete}
+        title="Delete Store?"
+        message="Are you sure you want to delete this store? This action cannot be undone."
+      />
     </Card>
   );
 }

@@ -6,8 +6,25 @@ import { clearQueuedChecklistReplaces, db, getShoppingDraftKey, getShoppingSessi
 
 import { useAppContext } from '../context/AppContext';
 import { syncMutationNowOrEnqueue } from './useOfflineSync';
+import { createClientId } from '../lib/ids';
 
 let inFlightTripsSync = null;
+
+async function getChecklistBaseUpdatedAt(tripId) {
+  const pendingQueue = await db.syncQueue.where('status').anyOf(['pending', 'failed']).toArray();
+  const hasPendingTripMutation = pendingQueue.some(
+    (item) =>
+      item.entity === 'trips' &&
+      String(item.payload?.id) === String(tripId)
+  );
+
+  if (hasPendingTripMutation) {
+    return '';
+  }
+
+  const trip = await db.trips.get(tripId);
+  return trip?.updated_at || '';
+}
 
 function normalizeTrip(trip) {
   return {
@@ -59,7 +76,16 @@ function normalizeStore(store) {
 
 async function reapplyPendingMutations() {
   const queueItems = await db.syncQueue.toArray();
-  const pending = queueItems.filter(item => item.status !== 'synced');
+  const pending = queueItems
+    .filter((item) => item.status !== 'synced')
+    .sort((left, right) => {
+      const leftTime = new Date(left.createdAt || 0).getTime();
+      const rightTime = new Date(right.createdAt || 0).getTime();
+      if (leftTime !== rightTime) {
+        return leftTime - rightTime;
+      }
+      return Number(left.id || 0) - Number(right.id || 0);
+    });
 
   for (const mutation of pending) {
     const { entity, action, payload } = mutation;
@@ -240,20 +266,8 @@ export function useTrips() {
   }, []);
 
   async function addTrip(values) {
-    let tripId;
-    try {
-      const response = await apiClient.getNextTripId();
-      tripId = Number(response?.next_id);
-      if (!Number.isFinite(tripId) || tripId <= 0) {
-        throw new Error('Invalid ID returned from server');
-      }
-    } catch (idError) {
-      console.warn('Failed to fetch numeric ID, using temporary UUID:', idError);
-      tripId = crypto.randomUUID();
-    }
-
     const trip = normalizeTrip({
-      id: tripId,
+      id: createClientId(),
       ...values,
       status: 'planned',
       created_at: new Date().toISOString()
@@ -267,6 +281,7 @@ export function useTrips() {
         payload: trip
       },
       {
+        preferBackground: true,
         onConflict: async (entityName, localData, remoteData) =>
           new Promise((resolve) => {
             showConflict(entityName, localData, remoteData, resolve);
@@ -300,7 +315,8 @@ export function useTrips() {
     return syncedTrip || trip;
   }
 
-  async function updateTrip(id, values) {
+  async function updateTrip(id, values, options = {}) {
+    const { skipConflictBase = false } = options;
     const existingTrip = await db.trips.get(id);
 
     if (!existingTrip) {
@@ -319,9 +335,10 @@ export function useTrips() {
       {
         entity: 'trips',
         action: 'update',
-        payload: updatedTrip
+        payload: skipConflictBase ? { ...updatedTrip, updated_at: '' } : updatedTrip
       },
       {
+        preferBackground: true,
         onConflict: async (entityName, localData, remoteData) =>
           new Promise((resolve) => {
             showConflict(entityName, localData, remoteData, resolve);
@@ -344,30 +361,16 @@ export function useTrips() {
   }
 
   async function replaceTripChecklist(tripId, items, options = {}) {
-    const { sync = true, notify = true } = options;
+    const { sync = true, notify = true, skipConflictBase = false } = options;
 
     // Fetch all inventory items once to optimize enrichment
     const inventoryItems = await db.inventoryItems.toArray();
     const inventoryMap = new Map(inventoryItems.map((inv) => [String(inv.id), inv]));
-    const itemsMissingIds = items.filter((item) => item.id === '' || item.id == null);
-    let reservedIds = [];
-
-    if (itemsMissingIds.length > 0) {
-      const response = await apiClient.getNextTripChecklistIds(itemsMissingIds.length);
-      reservedIds = Array.isArray(response?.ids) ? response.ids : [];
-
-      if (reservedIds.length !== itemsMissingIds.length) {
-        throw new Error('Could not retrieve checklist item IDs from Google Sheets.');
-      }
-    }
-
-    let reservedIdIndex = 0;
-
     const normalizedItems = items.map((item, index) => {
       const { draft_key, ...persistableItem } = item;
       const inventoryRef = item.inventory_item_id ? inventoryMap.get(String(item.inventory_item_id)) : null;
       const nextItemId =
-        persistableItem.id === '' || persistableItem.id == null ? reservedIds[reservedIdIndex++] : persistableItem.id;
+        persistableItem.id === '' || persistableItem.id == null ? createClientId() : persistableItem.id;
 
       return normalizeChecklistItem({
         ...persistableItem,
@@ -403,7 +406,7 @@ export function useTrips() {
     await clearQueuedChecklistReplaces(tripId);
 
     if (sync) {
-      const trip = await db.trips.get(tripId);
+      const baseUpdatedAt = skipConflictBase ? '' : await getChecklistBaseUpdatedAt(tripId);
       const result = await syncMutationNowOrEnqueue(
         {
           entity: 'tripChecklist',
@@ -411,10 +414,11 @@ export function useTrips() {
           payload: {
             trip_id: tripId,
             items: normalizedItems,
-            base_updated_at: trip?.updated_at || ''
+            base_updated_at: baseUpdatedAt
           }
         },
         {
+          preferBackground: true,
           onConflict: async (entityName, localData, remoteData) =>
             new Promise((resolve) => {
               showConflict(entityName, localData, remoteData, resolve);
@@ -428,13 +432,24 @@ export function useTrips() {
           'success'
         );
       }
-      return normalizedItems;
+
+      const latestTrip = await db.trips.get(tripId);
+      return {
+        items: normalizedItems,
+        trip: latestTrip || null,
+        status: result.status
+      };
     }
 
     if (notify) {
       showSnackbar('Checklist changes saved on this device.', 'success');
     }
-    return normalizedItems;
+    const latestTrip = await db.trips.get(tripId);
+    return {
+      items: normalizedItems,
+      trip: latestTrip || null,
+      status: 'local'
+    };
   }
 
   const stats = useMemo(() => {

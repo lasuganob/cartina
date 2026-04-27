@@ -11,7 +11,7 @@ import QrCodeScannerRoundedIcon from '@mui/icons-material/QrCodeScannerRounded';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
 import { useState } from 'react';
 import { db } from '../../../../lib/db';
-import { apiClient } from '../../../../api/client';
+import { createClientId } from '../../../../lib/ids';
 import BarcodeScannerDialog from '../../../../components/BarcodeScannerDialog';
 import { useAppContext } from '../../../../context/AppContext';
 import { syncMutationNowOrEnqueue } from '../../../../hooks/useOfflineSync';
@@ -33,20 +33,11 @@ export default function CatalogItemDialog({
   const handleSaveToInventory = async (isWetMarketOverride = false) => {
     setBusy(true);
     try {
-      let inventoryItemId;
-      try {
-        const response = await apiClient.getNextInventoryItemId();
-        inventoryItemId = response.next_id;
-      } catch (idError) {
-        console.warn('Failed to fetch numeric ID, using temporary UUID:', idError);
-        inventoryItemId = crypto.randomUUID();
-      }
-      
       const selectedCategory = categories.find(c => String(c.id) === String(categoryId));
       const isWetMarketFinal = isWetMarketOverride || isWetMarket;
       
       const newItem = {
-        id: inventoryItemId,
+        id: createClientId(),
         name: item.item_name.trim(),
         barcode: isWetMarketFinal ? '' : barcode.trim(),
         has_no_barcode: isWetMarketFinal,
@@ -63,6 +54,7 @@ export default function CatalogItemDialog({
           payload: newItem
         },
         {
+          preferBackground: true,
           onConflict: async (entityName, localData, remoteData) =>
             new Promise((resolve) => {
               showConflict(entityName, localData, remoteData, resolve);
